@@ -65,3 +65,13 @@ Append new entries at the END, newest last. Format: `## <YYYY-MM-DD HH:MM> — <
 - Added inert `window.__bitspringDebug` handle for headless QA.
 - Verified live on `localhost:8123`: full win path (finish flex, SIGNAL SECURED, PHASE COIL drop, returnTown restores hud-chips) and lose path (PARTNER DOWN) both clean; queue caps at 3; syntax PASS (58,308 chars).
 - Commit `3c5adbb`, pushed. NEXT: P1.6 — Workbench v2 (Robopon part depth).
+
+## 2026-10-10 07:10 — P1.6 Workbench v2 (Robopon depth)
+
+- Robot builds are now frame + 5 part slots (head/arms/legs/battery/core), each with 3 fittings (`PARTS_LIBRARY`) that add/subtract HP and POWER. Frame stats (CINDER 58/7, TIDAL 64/5, MOSS 70/3) + parts + Prism Plating/Phase Coil feed `robotStats()` → `robotMaxHP()` and AI Drive damage.
+- Hatchery ASSEMBLE tab is now a workbench: derived stat preview (MAX HP / POWER / AI MIND) + a PARTS BAY with per-slot equip buttons (`setPart` swaps free, updates the model + save). Builds stay plain serializable objects (`{...STARTER_PARTS}` on build).
+- 6 Ghostlight AI templates replace the old 3: KINDLE (aggro), TIDE (heal Drive), VOLT (big + recoil), MOSS (guard Drive), ECHO (fog next hit), HOLLOW (wildcard roll) — each with a tag, swatch, and TWEWY-style flavor line; AI Drive resolution (`resolveDrive`) drives the battle log + effects (`weakened` flag halves the next enemy hit).
+- `createRobot` takes a `build` param and reflects parts in the model (horned/dome head, claws, shield, treads, boosters, volt/overclock emissive accents). `refreshHud`/`createArena` pass `state.robot`.
+- Migration: old saves' SPARK/BASTION/ORACLE map → KINDLE/MOSS/ECHO; missing part slots backfilled to starter kit on load, so no save breaks.
+- Verified live on `localhost:8123`: build → 5-slot parts bay renders; `setPart` derives correct stats (TIDAL+horned=64hp/7atk; +volt+overclock=60hp/14atk); 6 AI cards + flavor lines; battle hero HP=60 (matches robotStats); resolveDrive correct for all 6; TIDE strike+heal, VOLT recoil, ECHO fog, full win path (SIGNAL SECURED) all clean. Syntax PASS (67,705 chars).
+- Commit `17eb1d2`, pushed. NEXT: P1.7 — Day/Mission system + Day 1.
