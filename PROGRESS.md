@@ -26,3 +26,13 @@ Append new entries at the END, newest last. Format: `## <YYYY-MM-DD HH:MM> — <
 - Bumped cache-buster `src/main.js?v=1` → `?v=2` in `index.html`.
 - Verified: `node tools/syntax-check.mjs` PASS (42,419 chars); live browser on `localhost:8123` — canvas 640×360 present, `#start-button` → HUD flex + BITSPRING zone + intro dialogue, zero runtime errors. (rAF throttled headless → movement/panel paths not drivable, same limit as prior shift; those paths were already play-tested pre-refactor.)
 - NEXT: P1.2 — models & look upgrade (user priority: "nice models").
+
+## 2026-10-10 03:45 — P1.2 Models & look upgrade
+
+- Rewrote `createHumanoid` (player/Wren/steward) into a layered character: boots, belt, emissive chest accent, sleeved arms with hands, shaped hair (top/fringe/sides) and face. Rewrote `createRobot` for all frames: emissive visor band + eyes + mouth grill, pulseable energy core, back thruster, pauldron caps, hands, knee pads, and distinct crests per frame (TIDAL fin, CINDER twin flame, MOSS leaf tips).
+- Added `blobShadow()` (radial-gradient contact shadows) under every humanoid and robot — grounds characters in town and battle.
+- Animated the energy core's `emissiveIntensity` in the frame loop (companion + both battle robots) for a living glow.
+- Fixed a latent bug: the companion bob previously animated a detached model — `buddyModel` is now `let` and reassigned in `refreshHud()` so the visible partner (and its core) animate correctly.
+- Verified: `node tools/syntax-check.mjs` PASS; live browser on `localhost:8123` — canvas 640×360, `#start-button` → start hidden + HUD flex + BITSPRING zone, zero console errors.
+- Commit `e93febe`, pushed to `main`. Optional outline pass deliberately skipped (flagged optional); key props (buildings/trees/fountain) already present.
+- NEXT: P1.3 — music & audio upgrade (user priority: "I want music").
