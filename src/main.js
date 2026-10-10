@@ -150,17 +150,51 @@ function addBuilding({ x, z, w = 5, d = 4, h = 3.1, title, color = palette.cyan,
 }
 
 // --- Character / robot models ---
+function blobShadow(parent, radius = .7, opacity = .42, y = .05) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(32, 32, 4, 32, 32, 30);
+  grad.addColorStop(0, `rgba(3,9,14,${opacity})`);
+  grad.addColorStop(.55, `rgba(3,9,14,${opacity * .55})`);
+  grad.addColorStop(1, 'rgba(3,9,14,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(c);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(radius * 2, radius * 2), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2;
+  m.position.y = y;
+  m.renderOrder = -1;
+  parent.add(m);
+  return m;
+}
 function createHumanoid(torso = 0x42b9bd, accent = 0xc9fa68) {
   const g = new THREE.Group();
-  box(g, 0, .34, 0, .72, .65, .5, torso);
-  box(g, 0, .95, 0, .54, .55, .52, 0xf2d2ad);
-  box(g, -.16, .97, .27, .08, .11, .05, 0x102635);
-  box(g, .16, .97, .27, .08, .11, .05, 0x102635);
-  box(g, 0, 1.31, 0, .7, .16, .64, accent);
-  box(g, -.22, .03, 0, .23, .34, .34, 0x1e4a5a);
-  box(g, .22, .03, 0, .23, .34, .34, 0x1e4a5a);
-  box(g, -.5, .42, 0, .22, .58, .3, torso);
-  box(g, .5, .42, 0, .22, .58, .3, torso);
+  // legs + boots
+  box(g, -.22, .16, 0, .24, .32, .34, 0x1e4a5a);
+  box(g, .22, .16, 0, .24, .32, .34, 0x1e4a5a);
+  box(g, -.22, .04, .05, .27, .1, .4, 0x162430);
+  box(g, .22, .04, .05, .27, .1, .4, 0x162430);
+  // torso + belt + chest accent
+  box(g, 0, .54, 0, .72, .5, .44, torso);
+  box(g, 0, .37, 0, .74, .13, .46, 0x1e4a5a);
+  box(g, 0, .63, .23, .4, .14, .05, accent, { emissive: accent, emissiveIntensity: .35 });
+  // arms (sleeve + hand)
+  box(g, -.53, .5, 0, .21, .44, .26, torso);
+  box(g, -.53, .24, 0, .19, .18, .24, 0xf2d2ad);
+  box(g, .53, .5, 0, .21, .44, .26, torso);
+  box(g, .53, .24, 0, .19, .18, .24, 0xf2d2ad);
+  // head (face + hair)
+  box(g, 0, 1.02, 0, .54, .52, .5, 0xf2d2ad);
+  box(g, 0, 1.31, 0, .58, .12, .54, accent);
+  box(g, 0, 1.08, .24, .54, .26, .08, accent);
+  box(g, -.29, 1.02, 0, .09, .5, .5, accent);
+  box(g, .29, 1.02, 0, .09, .5, .5, accent);
+  box(g, -.15, 1.06, .26, .09, .1, .04, 0x102635);
+  box(g, .15, 1.06, .26, .09, .1, .04, 0x102635);
+  blobShadow(g, .62, .4);
   return g;
 }
 function frameColors(frame) {
@@ -173,28 +207,61 @@ function frameColors(frame) {
 function createRobot(frame = 'TIDAL', name = 'PIP', scale = 1) {
   const c = frameColors(frame), g = new THREE.Group();
   g.scale.setScalar(scale);
+  const coreMat = new THREE.MeshLambertMaterial({ color: c.core, emissive: c.core, emissiveIntensity: .6 });
+  const visorMat = new THREE.MeshLambertMaterial({ color: 0xd8fff4, emissive: 0xd8fff4, emissiveIntensity: .8 });
+  const eyeMat = new THREE.MeshLambertMaterial({ color: 0xd8fff4, emissive: 0xd8fff4, emissiveIntensity: 1.15 });
+  // torso + belly panel + back thruster
   box(g, 0, 1.15, 0, 1.45, 1.25, 1.12, c.main);
-  box(g, 0, 1.18, .57, .28, .5, .12, c.core, { emissive: c.core, emissiveIntensity: .6 });
+  box(g, 0, 1.0, .57, .78, .46, .08, c.edge);
+  box(g, 0, 1.5, -.6, .5, .52, .16, c.main);
+  box(g, 0, 1.5, -.7, .32, .32, .08, c.core, { emissive: c.core, emissiveIntensity: .7 });
+  // energy core (pulseable) + head + visor + eyes + grill
+  const core = new THREE.Mesh(new THREE.BoxGeometry(.34, .5, .14), coreMat);
+  core.position.set(0, 1.18, .57);
+  g.add(core);
   box(g, 0, 2.05, 0, 1.0, .72, .92, c.edge);
-  box(g, 0, 1.96, .49, .66, .22, .1, 0x091c2a);
-  box(g, -.2, 1.97, .56, .12, .08, .05, 0xd8fff4);
-  box(g, .2, 1.97, .56, .12, .08, .05, 0xd8fff4);
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(.7, .16, .12), visorMat);
+  visor.position.set(0, 2.0, .5);
+  g.add(visor);
+  const eyeL = new THREE.Mesh(new THREE.BoxGeometry(.14, .1, .05), eyeMat);
+  eyeL.position.set(-.2, 2.0, .55);
+  const eyeR = new THREE.Mesh(new THREE.BoxGeometry(.14, .1, .05), eyeMat);
+  eyeR.position.set(.2, 2.0, .55);
+  g.add(eyeL, eyeR);
+  box(g, 0, 1.78, .5, .34, .1, .08, 0x091c2a);
+  // shoulders + pauldrons + arms + hands
   box(g, -.76, 1.35, 0, .42, .88, .48, c.edge);
   box(g, .76, 1.35, 0, .42, .88, .48, c.edge);
+  box(g, -.76, 1.86, 0, .52, .18, .58, c.main);
+  box(g, .76, 1.86, 0, .52, .18, .58, c.main);
   box(g, -.76, .86, .05, .43, .18, .49, c.main);
   box(g, .76, .86, .05, .43, .18, .49, c.main);
+  box(g, -.76, .5, .05, .4, .3, .4, 0x091c2a);
+  box(g, .76, .5, .05, .4, .3, .4, 0x091c2a);
+  // hips + knees + feet
   box(g, -.42, .36, 0, .48, .72, .53, 0x25495d);
   box(g, .42, .36, 0, .48, .72, .53, 0x25495d);
+  box(g, -.42, .2, .28, .46, .2, .24, c.edge);
+  box(g, .42, .2, .28, .46, .2, .24, c.edge);
   box(g, -.42, .08, .13, .62, .2, .72, c.edge);
   box(g, .42, .08, .13, .62, .2, .72, c.edge);
+  // frame-specific head crests
+  if (frame === 'TIDAL') {
+    box(g, 0, 2.62, 0, .12, .52, .12, c.edge);
+    box(g, 0, 2.92, 0, .2, .12, .2, c.core, { emissive: c.core, emissiveIntensity: .9 });
+  }
   if (frame === 'CINDER') {
     box(g, 0, 2.53, 0, .24, .48, .24, c.main);
     box(g, -.54, 2.28, 0, .24, .4, .24, c.edge);
+    box(g, .54, 2.28, 0, .24, .4, .24, c.edge);
   }
   if (frame === 'MOSS') {
     box(g, -.56, 2.18, 0, .32, .48, .3, c.edge);
     box(g, .56, 2.18, 0, .32, .48, .3, c.edge);
   }
+  blobShadow(g, .95, .42);
+  g.coreMat = coreMat;
+  g.visorMat = visorMat;
   return g;
 }
 
@@ -278,7 +345,7 @@ function buildTown() {
 const player = createHumanoid(0x2eabc0, 0xe8de9c);
 player.scale.setScalar(.9);
 const companion = new THREE.Group();
-const buddyModel = createRobot('TIDAL', 'PIP', .48);
+let buddyModel = createRobot('TIDAL', 'PIP', .48);
 companion.add(buddyModel);
 let obstacles = [];
 const state = {
@@ -420,6 +487,7 @@ function refreshHud() {
     $('hud-bot-name').textContent = state.robot.name;
     $('hud-bot-detail').textContent = `${state.robot.frame} FRAME • ${state.ai || 'NO AI CORE'}`;
     const n = createRobot(state.robot.frame, state.robot.name, .48);
+    buddyModel = n;
     companion.clear();
     companion.add(n);
   }
@@ -874,10 +942,13 @@ function frameLoop() {
     const t = performance.now() / 500;
     buddyModel.position.y = .04 + Math.sin(t) * .06;
     buddyModel.rotation.y = Math.sin(t * .55) * .12;
+    if (buddyModel.coreMat) buddyModel.coreMat.emissiveIntensity = .55 + Math.sin(performance.now() / 320) * .3;
   }
   if (battle && !battle.done) {
     battle.heroModel && (battle.heroModel.rotation.y = -.12 + Math.sin(performance.now() / 600) * .045);
     battle.enemyModel && (battle.enemyModel.rotation.y = Math.PI + .12 + Math.sin(performance.now() / 520) * .045);
+    if (battle.heroModel?.coreMat) battle.heroModel.coreMat.emissiveIntensity = .55 + Math.sin(performance.now() / 320) * .3;
+    if (battle.enemyModel?.coreMat) battle.enemyModel.coreMat.emissiveIntensity = .55 + Math.sin(performance.now() / 300) * .35;
   }
   renderer.render(scene, camera);
 }
