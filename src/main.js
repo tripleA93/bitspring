@@ -367,34 +367,57 @@ let musicTheme = 'town';
 let musicStep = 0;
 let nextMusicTime = 0;
 let noiseBuffer = null;
+let battleIntensity = 0;
 const townMelody = [74, null, 78, null, 81, 78, 76, null, 74, null, 78, 81, 83, null, 81, null, 78, null, 81, null, 85, null, 83, 81, 78, null, 76, null, 74, null, 69, null];
 const battleMelody = [74, 78, 81, 78, 74, null, 81, 85, 83, 81, 78, 81, 86, null, 85, 81, 78, 81, 83, 86, 88, null, 86, 83, 81, 78, 81, 85, 83, null, 78, null];
 
 // --- Audio (procedural WebAudio) ---
+const settings = { musicOn: true, volume: 0.32 };
+function loadSettings() {
+  try { Object.assign(settings, JSON.parse(localStorage.getItem('bitspring-settings-v1') || '{}')); } catch {}
+  musicEnabled = settings.musicOn !== false;
+}
+function saveSettings() {
+  try { localStorage.setItem('bitspring-settings-v1', JSON.stringify(settings)); } catch {}
+}
 function setMusicButton() {
   const b = $('music-toggle');
   b.textContent = musicEnabled ? '♫ MUSIC ON' : '♫ MUSIC OFF';
   b.setAttribute('aria-pressed', String(musicEnabled));
 }
-function startMusic() {
+function initAudio() {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextClass) return;
+  if (!AudioContextClass) return null;
   if (!audioContext) {
     audioContext = new AudioContextClass();
     masterGain = audioContext.createGain();
     masterGain.gain.value = .0001;
     masterGain.connect(audioContext.destination);
-    const length = Math.floor(audioContext.sampleRate * .055);
+    const length = Math.floor(audioContext.sampleRate * .35);
     noiseBuffer = audioContext.createBuffer(1, length, audioContext.sampleRate);
     const data = noiseBuffer.getChannelData(0);
     for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / length);
   }
-  audioContext.resume();
+  return audioContext;
+}
+function startMusic() {
+  const ctx = initAudio();
+  if (!ctx) return;
+  ctx.resume();
   musicEnabled = true;
-  masterGain.gain.setTargetAtTime(.32, audioContext.currentTime, .12);
-  nextMusicTime = audioContext.currentTime + .05;
+  settings.musicOn = true;
+  masterGain.gain.setTargetAtTime(settings.volume, ctx.currentTime, .12);
+  nextMusicTime = ctx.currentTime + .05;
   setMusicButton();
   if (!musicTimer) musicTimer = window.setInterval(scheduleMusic, 25);
+  saveSettings();
+}
+function setVolume(v) {
+  settings.volume = Math.max(0, Math.min(1, v));
+  if (masterGain && audioContext && musicEnabled) masterGain.gain.setTargetAtTime(settings.volume, audioContext.currentTime, .06);
+  saveSettings();
+  const s = $('volume-slider');
+  if (s) s.value = Math.round(settings.volume * 100);
 }
 function setMusicTheme(theme) {
   if (musicTheme === theme) return;
@@ -405,8 +428,10 @@ function setMusicTheme(theme) {
 function toggleMusic() {
   if (musicEnabled) {
     musicEnabled = false;
+    settings.musicOn = false;
     if (masterGain && audioContext) masterGain.gain.setTargetAtTime(.0001, audioContext.currentTime, .06);
     setMusicButton();
+    saveSettings();
   } else startMusic();
 }
 function playTone(midi, when, duration, wave = 'square', volume = .025, slide = null) {
@@ -424,22 +449,27 @@ function playTone(midi, when, duration, wave = 'square', volume = .025, slide = 
   osc.start(when);
   osc.stop(when + duration + .015);
 }
-function playNoise(when, volume = .012) {
+function playNoise(when, volume = .012, dur = .045, type = 'highpass', freq = 3500) {
   if (!audioContext || !noiseBuffer) return;
   const src = audioContext.createBufferSource(), filter = audioContext.createBiquadFilter(), amp = audioContext.createGain();
   src.buffer = noiseBuffer;
-  filter.type = 'highpass';
-  filter.frequency.value = 3500;
+  filter.type = type;
+  filter.frequency.value = freq;
   amp.gain.setValueAtTime(.0001, when);
-  amp.gain.exponentialRampToValueAtTime(volume, when + .003);
-  amp.gain.exponentialRampToValueAtTime(.0001, when + .045);
+  amp.gain.exponentialRampToValueAtTime(Math.max(.0002, volume), when + .004);
+  amp.gain.exponentialRampToValueAtTime(.0001, when + dur);
   src.connect(filter);
   filter.connect(amp);
   amp.connect(masterGain);
   src.start(when);
+  src.stop(when + dur + .02);
 }
 function scheduleMusicStep(step, when) {
-  const inBattle = musicTheme === 'battle', melody = inBattle ? battleMelody : townMelody, roots = inBattle ? [50, 46, 48, 43] : [50, 45, 47, 43], root = roots[Math.floor(step / 8) % 4], beat = step % 8;
+  const inBattle = musicTheme === 'battle',
+        melody = inBattle ? battleMelody : townMelody,
+        roots = inBattle ? [50, 46, 48, 43] : [50, 45, 47, 43],
+        root = roots[Math.floor(step / 8) % 4],
+        beat = step % 8;
   if (beat === 0 || beat === 4) {
     playTone(root - 12, when, .23, 'triangle', inBattle ? .2 : .17);
     if (beat === 0) playTone(root + 12, when, .15, 'square', inBattle ? .05 : .04);
@@ -452,6 +482,24 @@ function scheduleMusicStep(step, when) {
     const chord = inBattle ? [0, 3, 7] : [0, 4, 7];
     chord.forEach((interval, i) => playTone(root + interval + 12, when, .2, 'triangle', i === 0 ? .04 : .025));
   }
+  if (!inBattle) {
+    // town: shimmering arpeggio + an evolving counter-line on the back half of the phrase
+    const arp = [0, 12, 7, 12, 4, 12, 7, 12];
+    playTone(root + 24 + arp[step % 8], when, .09, 'square', .018);
+    if (step >= 16) {
+      const counter = [86, null, 83, null, 81, 83, 79, null, 81, null, 78, null, 76, 78, 74, null];
+      const cn = counter[step % 16];
+      if (cn) playTone(cn, when, .11, 'triangle', .03);
+    }
+  } else {
+    // battle: intensity layers that rise as the match drags on
+    if (battleIntensity >= .3 && note !== null && beat % 2 === 0) playTone(note + 12, when + .11, .1, 'square', .028);
+    if (battleIntensity >= .6) {
+      if (beat % 2 === 1) playNoise(when, .015, .03, 'highpass', 6000);
+      if (beat === 2 || beat === 6) playTone(root - 24, when, .12, 'sawtooth', .055);
+    }
+    if (battleIntensity >= 1 && beat % 2 === 0) playTone(root - 12, when + .06, .1, 'triangle', .11);
+  }
 }
 function scheduleMusic() {
   if (!audioContext || !musicEnabled || audioContext.state !== 'running') return;
@@ -462,6 +510,29 @@ function scheduleMusic() {
     scheduleMusicStep(musicStep, nextMusicTime);
     musicStep = (musicStep + 1) % 32;
     nextMusicTime += 60 / tempo / 2;
+  }
+}
+
+// --- SFX (procedural one-shots) ---
+function nowTime() { return audioContext ? audioContext.currentTime : 0; }
+function sfxSelect() { const t = nowTime(); playTone(76, t, .06, 'square', .03); }
+function sfxConfirm() { const t = nowTime(); playTone(83, t, .07, 'square', .035); playTone(88, t + .07, .09, 'square', .035); }
+function sfxBlip() { const t = nowTime(); playTone(72, t, .035, 'square', .018); }
+function sfxRobot() { const t = nowTime(); playTone(62, t, .06, 'square', .035); playTone(74, t + .05, .06, 'square', .03); playTone(86, t + .1, .08, 'square', .03); }
+function sfxHit() { const t = nowTime(); playNoise(t, .03); playTone(88, t, .07, 'square', .045, 160); }
+function sfxHeavyHit() { const t = nowTime(); playNoise(t, .04, .05, 'lowpass', 900); playTone(52, t, .1, 'sawtooth', .05, 90); playTone(88, t, .06, 'square', .04, 180); }
+function sfxGuard() { const t = nowTime(); playTone(70, t, .06, 'triangle', .04); playTone(74, t + .05, .06, 'triangle', .04); }
+function sfxHeal() { const t = nowTime(); [72, 76, 79].forEach((m, i) => playTone(m, t + i * .06, .09, 'triangle', .04)); }
+function sfxEnemyHit() { const t = nowTime(); playNoise(t, .035, .06, 'lowpass', 700); playTone(55, t, .12, 'sawtooth', .04, 70); }
+function sfxPickup() { const t = nowTime(); playTone(84, t, .05, 'square', .03); playTone(96, t + .05, .07, 'square', .03); }
+function playJingle(won) {
+  const t = nowTime() + .02;
+  if (won) {
+    [[72, 0], [76, .12], [79, .24], [84, .36], [88, .48]].forEach(([m, d]) => playTone(m, t + d, .3, 'square', .07));
+    [72, 76, 79, 84].forEach(m => playTone(m + 12, t + .6, .5, 'triangle', .04));
+  } else {
+    [[69, 0], [66, .14], [62, .28], [57, .44]].forEach(([m, d]) => playTone(m, t + d, .32, 'triangle', .07));
+    playTone(45, t + .6, .6, 'triangle', .05);
   }
 }
 
@@ -522,6 +593,7 @@ function showDialogue(speaker, lines) {
   dialogueOpen = true;
   $('speaker').textContent = speaker;
   $('dialogue').style.display = 'block';
+  sfxSelect();
   advanceDialogue();
 }
 function advanceDialogue() {
@@ -531,6 +603,7 @@ function advanceDialogue() {
     return;
   }
   $('dialogue-line').textContent = dialogueQueue.shift();
+  sfxBlip();
 }
 function openPanel(tab = 'build') {
   if (dialogueOpen) {
@@ -538,6 +611,7 @@ function openPanel(tab = 'build') {
     $('dialogue').style.display = 'none';
   }
   modalTab = tab;
+  sfxConfirm();
   renderPanel();
   $('modal-shade').style.display = 'flex';
 }
@@ -578,9 +652,9 @@ function renderPanel() {
   html += `<div class="message" id="panel-message">${state.message || ''}</div>`;
   $('panel').innerHTML = html;
   $('close-panel').onclick = closePanel;
-  $('panel').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { modalTab = b.dataset.tab; state.message = ''; renderPanel(); });
-  $('panel').querySelectorAll('[data-frame]').forEach(b => b.onclick = () => { state.selectedFrame = b.dataset.frame; renderPanel(); });
-  $('panel').querySelectorAll('[data-ai]').forEach(b => b.onclick = () => { state.selectedAI = b.dataset.ai; renderPanel(); });
+  $('panel').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { modalTab = b.dataset.tab; state.message = ''; sfxSelect(); renderPanel(); });
+  $('panel').querySelectorAll('[data-frame]').forEach(b => b.onclick = () => { state.selectedFrame = b.dataset.frame; sfxSelect(); renderPanel(); });
+  $('panel').querySelectorAll('[data-ai]').forEach(b => b.onclick = () => { state.selectedAI = b.dataset.ai; sfxSelect(); renderPanel(); });
   $('panel').querySelectorAll('[data-buy]').forEach(b => b.onclick = () => buyPart(b.dataset.buy));
   $('panel').querySelectorAll('[data-sell]').forEach(b => b.onclick = () => sellTrade(b.dataset.sell));
   $('panel').querySelectorAll('[data-active]').forEach(b => b.onclick = () => setActiveRobot(+b.dataset.active));
@@ -605,6 +679,7 @@ function buildRobot() {
   state.ai = null;
   save();
   refreshHud();
+  sfxRobot();
   state.message = `${name} is registered. A frame is only a beginning; choose a Ghostlight core next.`;
   modalTab = 'ai';
   renderPanel();
@@ -615,6 +690,7 @@ function setActiveRobot(i) {
   state.ai = state.robot.ai || null;
   save();
   refreshHud();
+  sfxConfirm();
   state.message = `${state.robot.name} is your partner now.`;
   modalTab = 'robots';
   renderPanel();
@@ -629,6 +705,7 @@ function installAI() {
   if (idx >= 0) state.roster[idx].ai = state.selectedAI;
   save();
   refreshHud();
+  sfxConfirm();
   state.message = `${state.selectedAI} core installed. Your partner can think for itself now.`;
   renderPanel();
 }
@@ -639,6 +716,7 @@ function buyPart(part) {
   state.parts[part] = true;
   save();
   refreshHud();
+  sfxConfirm();
   state.message = `Moss hands over the ${part === 'prism' ? 'Prism Plating' : 'Phase Coil'}. Good swap.`;
   renderPanel();
 }
@@ -656,6 +734,7 @@ function sellTrade(kind) {
   }
   save();
   refreshHud();
+  sfxConfirm();
   renderPanel();
 }
 function interact() {
@@ -766,6 +845,7 @@ function startBattle() {
   battleRoot.visible = true;
   const max = robotMaxHP();
   battle = { heroHP: max, heroMax: max, enemyHP: 48, enemyMax: 48, guard: false, patches: 2, round: 1, done: false };
+  battleIntensity = 0;
   createArena();
   battleRoot.visible = true;
   $('zone-name').textContent = 'BATTLE GATE';
@@ -849,6 +929,10 @@ function battleMove(kind) {
     battle.enemyModel.position.x += .35;
     setTimeout(() => battle.enemyModel.position.x -= .35, 160);
   }
+  if (kind === 'ping') sfxHit();
+  if (kind === 'drive') sfxHeavyHit();
+  if (kind === 'guard') sfxGuard();
+  if (kind === 'patch') sfxHeal();
   updateBattleUI(message);
   if (battle.enemyHP <= 0) {
     setTimeout(() => finishBattle(true), 550);
@@ -860,6 +944,8 @@ function battleMove(kind) {
     battle.guard = false;
     battle.heroHP = Math.max(0, battle.heroHP - hit);
     battle.round++;
+    battleIntensity = Math.min(1, (battle.round - 1) / 3);
+    sfxEnemyHit();
     battle.heroModel.position.x -= .25;
     setTimeout(() => battle.heroModel.position.x += .25, 160);
     if (battle.heroHP <= 0) {
@@ -874,6 +960,7 @@ function battleMove(kind) {
 function finishBattle(won) {
   battle.done = true;
   battleAnimating = false;
+  playJingle(won);
   if (won) {
     state.wins++;
     state.chips += 4;
@@ -922,7 +1009,9 @@ function begin() {
   $('start-screen').style.display = 'none';
   $('hud').style.display = 'flex';
   $('music-toggle').style.display = 'block';
-  startMusic();
+  $('volume-ctl').style.display = 'flex';
+  initAudio();
+  if (settings.musicOn) startMusic(); else setMusicButton();
   refreshHud();
   if (!state.introSeen) {
     state.introSeen = true;
@@ -961,6 +1050,7 @@ window.addEventListener('keydown', e => {
   if (e.repeat) return;
   if (e.code === 'Enter' && !state.started) { begin(); return; }
   if (e.code === 'KeyE') { interact(); return; }
+  if (e.code === 'KeyM' && state.started) { toggleMusic(); return; }
   if (e.code === 'Escape') {
     if (activeModal()) closePanel();
     else if (dialogueOpen) { dialogueOpen = false; $('dialogue').style.display = 'none'; }
@@ -971,6 +1061,7 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 $('start-button').onclick = begin;
 $('music-toggle').onclick = toggleMusic;
+$('volume-slider').oninput = e => setVolume(e.target.value / 100);
 $('modal-shade').addEventListener('click', e => { if (e.target === $('modal-shade')) closePanel(); });
 $('touch-act').addEventListener('click', interact);
 document.querySelectorAll('.touch-pad button').forEach(b => {
@@ -984,6 +1075,8 @@ document.querySelectorAll('.touch-pad button').forEach(b => {
 });
 // Load saved partner data before constructing the follower model.
 load();
+loadSettings();
+$('volume-slider').value = Math.round(settings.volume * 100);
 buildTown();
 $('start-screen').style.display = 'flex';
 refreshHud();

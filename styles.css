@@ -17,6 +17,9 @@
   .hud-right strong{color:var(--cyan);font-weight:700}
   .music-toggle{position:absolute;z-index:5;right:18px;top:77px;border:1px solid #42667d;background:rgba(5,18,30,.94);color:var(--cyan);padding:7px 10px;font-size:9px;letter-spacing:.08em;cursor:pointer;box-shadow:3px 3px #06101a}
   .music-toggle:hover{border-color:var(--lime);color:var(--lime)}
+  .volume-ctl{position:absolute;z-index:5;right:18px;top:118px;display:flex;align-items:center;gap:7px;border:1px solid #42667d;background:rgba(5,18,30,.94);padding:6px 9px;box-shadow:3px 3px #06101a}
+  .volume-ctl .vol-label{font-size:8px;color:var(--cyan);letter-spacing:.12em}
+  .volume-ctl input[type=range]{width:76px;accent-color:var(--lime);background:transparent;cursor:pointer}
   .bot-card{position:absolute;z-index:4;right:18px;bottom:18px;min-width:194px;border:2px solid #42667d;background:rgba(5,18,30,.91);box-shadow:4px 4px 0 #06101a;padding:10px 12px;display:none}
   .bot-card .eyebrow{font-size:9px;color:var(--muted);letter-spacing:.15em}
   .bot-card .bot-name{font:10px 'Press Start 2P',monospace;color:var(--lime);margin:8px 0}
@@ -108,7 +111,7 @@
   .touch-act{display:none;position:absolute;z-index:5;right:17px;bottom:30px;width:61px;height:61px;border:2px solid var(--lime);border-radius:50%;background:#213d36dd;color:var(--lime);font:9px 'Press Start 2P',monospace;touch-action:none}
   @media(max-width:700px){
     .title-layout{grid-template-columns:1fr;gap:15px}.hero-card{display:none}.title-sub{font-size:11px;margin:16px 0}.title-mark{font-size:clamp(28px,10vw,49px)}
-    .hud{inset:9px 9px auto}.hud-left,.hud-right{padding:7px 8px}.hud-right{font-size:8px}.zone-name{font-size:8px}.zone-sub{font-size:8px}.music-toggle{right:8px;top:65px;font-size:8px;padding:6px 8px}
+    .hud{inset:9px 9px auto}.hud-left,.hud-right{padding:7px 8px}.hud-right{font-size:8px}.zone-name{font-size:8px}.zone-sub{font-size:8px}.music-toggle{right:8px;top:65px;font-size:8px;padding:6px 8px}.volume-ctl{right:8px;top:98px;padding:4px 7px}.volume-ctl input[type=range]{width:58px}
     .controls{display:none}.bot-card{right:8px;bottom:8px;min-width:145px;padding:7px}.bot-card .bot-name{font-size:8px;margin:5px 0}.bot-card .bot-detail{font-size:8px}
     .cards{grid-template-columns:1fr}.choice{min-height:auto}.panel{padding:17px;max-height:94vh}.panel-title{font-size:11px}.field-row{align-items:stretch;flex-direction:column}.field{min-width:unset}.trade-row{padding:8px}.trade-copy strong{font-size:7px}
     .touch-pad,.touch-act{display:grid}.touch-act{display:grid;place-items:center}.prompt{bottom:82px;font-size:9px}.dialogue{bottom:78px;padding:12px}.dialogue .line{font-size:11px}
