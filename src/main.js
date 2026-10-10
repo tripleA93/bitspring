@@ -565,7 +565,8 @@ function load() {
   } catch {}
 }
 function refreshHud() {
-  $('hud-chips').textContent = state.chips;
+  const chipsEl = $('hud-chips');
+  if (chipsEl) chipsEl.textContent = state.chips;
   $('bot-card').style.display = state.robot ? 'block' : 'none';
   companion.visible = !!state.robot;
   if (state.robot) {
@@ -850,6 +851,53 @@ function createArena() {
   camera.position.set(13, 17, 18);
   camera.lookAt(0, .5, 0);
 }
+// --- Battle v2 (Battle-Network-style chip deck) ---
+const CHIP_LIBRARY = {
+  ping:  { name: 'PING',     kind: 'atk',   dmg: 12, glyph: '▸', tone: 'cyan' },
+  boom:  { name: 'BOOM',     kind: 'atk',   dmg: 20, glyph: '✦', tone: 'pink' },
+  drive: { name: 'AI DRIVE', kind: 'atk',   glyph: '⌁', tone: 'lime' },
+  guard: { name: 'GUARD',    kind: 'guard', glyph: '▣', tone: 'cyan' },
+  patch: { name: 'PATCH',    kind: 'heal',  amount: 18, glyph: '✚', tone: 'lime' },
+  dash:  { name: 'DASH',     kind: 'dash',  glyph: '»', tone: 'pink' }
+};
+const COLUMN_NAMES = ['LEFT', 'MID', 'RIGHT'];
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } }
+function buildDeck() {
+  const deck = [];
+  const add = (id, n) => { for (let i = 0; i < n; i++) deck.push({ id, ...CHIP_LIBRARY[id] }); };
+  add('ping', 5); add('boom', 3); add('drive', 2); add('guard', 3); add('patch', 2); add('dash', 1);
+  return deck;
+}
+function chipDmg(chip) {
+  if (chip.id === 'drive') {
+    if (state.ai === 'BASTION') return 13 + (state.parts.coil ? 5 : 0);
+    if (state.ai === 'ORACLE') return 18 + (state.parts.coil ? 5 : 0);
+    return 22 + (state.parts.coil ? 7 : 0);
+  }
+  return chip.dmg;
+}
+function chipDesc(chip) {
+  if (chip.id === 'drive') return state.ai === 'BASTION' ? `STRIKE ${chipDmg(chip)} + RESTORE ${state.parts.coil ? 13 : 9}` : `STRIKE ${chipDmg(chip)}`;
+  if (chip.kind === 'atk') return `STRIKE ${chip.dmg}`;
+  if (chip.kind === 'guard') return 'HALVE NEXT HIT';
+  if (chip.kind === 'heal') return `RESTORE ${chip.amount}`;
+  return 'EVADE + REPOSITION';
+}
+function drawTo(n) {
+  while (battle.hand.length < n) {
+    if (!battle.deck.length) { if (!battle.discard.length) break; battle.deck = battle.discard; battle.discard = []; shuffle(battle.deck); }
+    battle.hand.push(battle.deck.pop());
+  }
+}
+function rollEnemyIntent() {
+  const options = [
+    { name: 'HEAVY STRIKE', kind: 'hit', dmg: 14, col: battle.heroPos.c },
+    { name: 'SPLIT SHOT', kind: 'hit', dmg: 9, col: Math.floor(Math.random() * 3) },
+    { name: 'RECHARGE', kind: 'heal', amount: 8 }
+  ];
+  if (battle.round >= 3) options.push({ name: 'OVERRUN', kind: 'hit', dmg: 18, col: Math.floor(Math.random() * 3) });
+  battle.enemyIntent = options[Math.floor(Math.random() * options.length)];
+}
 function startBattle() {
   interaction = null;
   state.zone = 'battle';
@@ -858,7 +906,14 @@ function startBattle() {
   actorRoot.visible = false;
   battleRoot.visible = true;
   const max = robotMaxHP();
-  battle = { heroHP: max, heroMax: max, enemyHP: 48, enemyMax: 48, guard: false, patches: 2, round: 1, done: false };
+  battle = {
+    heroHP: max, heroMax: max, enemyHP: 48, enemyMax: 48,
+    deck: buildDeck(), hand: [], discard: [], queue: [],
+    heroPos: { c: 1, r: 1 }, enemyPos: { c: 1, r: 1 }, moved: false,
+    guard: false, evade: false, round: 1, done: false, enemyIntent: null, heroModel: null, enemyModel: null
+  };
+  shuffle(battle.deck);
+  drawTo(5);
   battleIntensity = 0;
   createArena();
   battleRoot.visible = true;
@@ -867,22 +922,57 @@ function startBattle() {
   $('hud-right').innerHTML = '<strong>LIVE MATCH</strong><br>FIRST SIGNAL WINS';
   $('battle-ui').style.display = 'grid';
   $('battle-finish').style.display = 'none';
-  renderMoves();
-  updateBattleUI('A rogue signal crawls out of the static…');
+  rollEnemyIntent();
+  updateBattleUI('A rogue signal crawls out of the static. Line up your column and play up to three chips.');
 }
 function robotMaxHP() {
   return 60 + (state.robot?.frame === 'MOSS' ? 8 : 0) + (state.parts.prism ? 10 : 0);
 }
-function renderMoves() {
-  const ai = state.ai || 'SPARK';
-  const moves = [
-    ['PING', '12 dmg', 'ping'],
-    [`${ai} DRIVE`, 'AI ability', 'drive'],
-    ['GUARD', 'halve hit', 'guard'],
-    ['PATCH', `${battle?.patches || 0} left`, 'patch']
-  ];
-  $('moves').innerHTML = moves.map(([n, d, k]) => `<button class="move" data-move="${k}" ${battleAnimating || battle?.done ? 'disabled' : ''}><strong>${n}</strong>${d}</button>`).join('');
-  $('moves').querySelectorAll('[data-move]').forEach(b => b.onclick = () => battleMove(b.dataset.move));
+function renderHand() {
+  const el = $('chip-hand');
+  if (!el) return;
+  el.innerHTML = battle.hand.map((c, i) => `<button class="chip-card ${c.tone}${battle.queue.includes(c) ? ' queued' : ''}" data-chip="${i}"><span class="chip-glyph">${c.glyph}</span><strong>${c.name}</strong><small>${chipDesc(c)}</small></button>`).join('');
+  el.querySelectorAll('[data-chip]').forEach(b => b.onclick = () => toggleChip(+b.dataset.chip));
+}
+function renderQueue() {
+  document.querySelectorAll('#battle-ui .qslot').forEach((s, i) => {
+    const c = battle.queue[i];
+    s.textContent = c ? c.glyph : '';
+    s.className = 'qslot' + (c ? ` filled ${c.tone}` : '');
+  });
+}
+function renderField() {
+  const heroEl = $('hero-grid'), enemyEl = $('enemy-grid');
+  if (!heroEl || !enemyEl) return;
+  heroEl.innerHTML = ''; enemyEl.innerHTML = '';
+  const aimCol = (battle.enemyIntent?.kind === 'hit' && !battle.done) ? battle.enemyIntent.col : -1;
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+    const hc = document.createElement('div');
+    hc.className = 'cell' + (battle.heroPos.r === r && battle.heroPos.c === c ? ' hero' : (c === aimCol ? ' aim' : ''));
+    hc.onclick = () => moveHero(c, r);
+    heroEl.appendChild(hc);
+    const ec = document.createElement('div');
+    ec.className = 'cell' + (battle.enemyPos.r === r && battle.enemyPos.c === c ? ' enemy' : '');
+    enemyEl.appendChild(ec);
+  }
+}
+function moveHero(c, r) {
+  if (!battle || battle.done || battleAnimating || battle.moved) return;
+  battle.heroPos = { c, r };
+  battle.moved = true;
+  sfxSelect();
+  updateBattleUI('You sidestep to a new panel.');
+}
+function toggleChip(handIdx) {
+  if (battle.done || battleAnimating) return;
+  const chip = battle.hand[handIdx];
+  if (!chip) return;
+  const qi = battle.queue.indexOf(chip);
+  if (qi >= 0) battle.queue.splice(qi, 1);
+  else if (battle.queue.length < 3) battle.queue.push(chip);
+  else { sfxSelect(); updateBattleUI('At most three chips per turn.'); return; }
+  sfxSelect();
+  updateBattleUI();
 }
 function updateBattleUI(log) {
   $('hero-hp-text').textContent = `${Math.max(0, battle.heroHP)} / ${battle.heroMax}`;
@@ -890,86 +980,104 @@ function updateBattleUI(log) {
   $('hero-hp-bar').style.width = `${Math.max(0, battle.heroHP) / battle.heroMax * 100}%`;
   $('enemy-hp-bar').style.width = `${Math.max(0, battle.enemyHP) / battle.enemyMax * 100}%`;
   $('hero-label').textContent = state.robot?.name || 'YOUR UNIT';
-  $('battle-log').textContent = log;
+  if (log) $('battle-log').textContent = log;
   if (battle.done) {
+    $('enemy-intent').innerHTML = '';
     $('battle-turn').textContent = 'MATCH COMPLETE';
-  } else if (battleAnimating) {
-    $('battle-turn').textContent = 'ROGUE UNIT THINKING…';
   } else {
-    $('battle-turn').textContent = `YOUR TURN • ${state.ai || 'AI READY'}`;
+    const it = battle.enemyIntent;
+    $('enemy-intent').innerHTML = it.kind === 'heal'
+      ? '<b class="i-heal">NULL-01 TELEGRAPHS: RECHARGE</b>'
+      : `<b class="i-hit">NULL-01 TELEGRAPHS: ${it.name} → ${COLUMN_NAMES[it.col]} COLUMN</b>`;
+    $('battle-turn').textContent = battleAnimating ? 'ROGUE UNIT THINKING…' : 'YOUR TURN • PLAY UP TO 3 CHIPS';
   }
-  renderMoves();
+  $('chip-execute').disabled = battle.done || battleAnimating || !battle.queue.length;
+  renderHand();
+  renderQueue();
+  renderField();
 }
-function battleMove(kind) {
+function executeQueue() {
   if (!battle || battle.done || battleAnimating) return;
+  if (!battle.queue.length) { updateBattleUI('Play at least one chip before executing.'); return; }
   battleAnimating = true;
-  let message = '';
-  let damage = 0;
-  if (kind === 'ping') {
-    damage = 12 + (state.robot.frame === 'CINDER' ? 3 : 0);
-    message = `${state.robot.name} sends a clean PING for ${damage} damage.`;
-  }
-  if (kind === 'drive') {
-    if (state.ai === 'BASTION') {
-      damage = 13 + (state.parts.coil ? 5 : 0);
-      const heal = state.parts.coil ? 13 : 9;
-      battle.heroHP = Math.min(battle.heroMax, battle.heroHP + heal);
-      message = `BASTION braces and restores ${heal} HP, then counters for ${damage}.`;
-    } else if (state.ai === 'ORACLE') {
-      damage = 18 + (state.parts.coil ? 5 : 0);
-      message = `ORACLE reads the static: NULL-01 will use a heavy strike. ${damage} damage.`;
-    } else {
-      damage = 22 + (state.parts.coil ? 7 : 0);
-      message = `SPARK lights the route! A ${damage}-damage overclocked strike.`;
+  const chips = battle.queue.slice();
+  battle.queue = [];
+  const linedUp = battle.heroPos.c === battle.enemyPos.c;
+  let totalDmg = 0;
+  const lines = [];
+  for (const chip of chips) {
+    const hi = battle.hand.indexOf(chip);
+    if (hi >= 0) battle.hand.splice(hi, 1);
+    battle.discard.push(chip);
+    if (chip.kind === 'atk') {
+      const dmg = chipDmg(chip) + (chip.id !== 'drive' && linedUp ? 3 : 0);
+      battle.enemyHP = Math.max(0, battle.enemyHP - dmg);
+      totalDmg += dmg;
+      if (chip.id === 'drive' && state.ai === 'BASTION') {
+        const heal = state.parts.coil ? 13 : 9;
+        battle.heroHP = Math.min(battle.heroMax, battle.heroHP + heal);
+        lines.push(`BASTION restores ${heal} HP, then strikes for ${dmg}.`);
+      } else {
+        lines.push(`${state.robot.name} fires ${chip.name} for ${dmg}${chip.id !== 'drive' && linedUp ? ' (lined up!)' : ''}.`);
+      }
+    } else if (chip.kind === 'guard') {
+      battle.guard = true;
+      lines.push(`${state.robot.name} raises a guard.`);
+    } else if (chip.kind === 'heal') {
+      battle.heroHP = Math.min(battle.heroMax, battle.heroHP + chip.amount);
+      lines.push(`A field ${chip.name.toLowerCase()} restores ${chip.amount} HP.`);
+    } else if (chip.kind === 'dash') {
+      battle.evade = true;
+      lines.push(`${state.robot.name} dashes — the next hit will slip past.`);
     }
   }
-  if (kind === 'guard') {
-    battle.guard = true;
-    message = `${state.robot.name} raises a guard. The next hit will be softened.`;
-  }
-  if (kind === 'patch') {
-    if (battle.patches <= 0) {
-      battleAnimating = false;
-      updateBattleUI('No patches left. Make your next move count.');
-      return;
-    }
-    battle.patches--;
-    const heal = 20 + (state.robot.frame === 'MOSS' ? 5 : 0);
-    battle.heroHP = Math.min(battle.heroMax, battle.heroHP + heal);
-    message = `A field patch restores ${heal} HP.`;
-  }
-  if (damage) {
-    battle.enemyHP = Math.max(0, battle.enemyHP - damage);
+  if (totalDmg > 0) {
+    sfxHeavyHit();
     battle.enemyModel.position.x += .35;
     setTimeout(() => battle.enemyModel.position.x -= .35, 160);
-  }
-  if (kind === 'ping') sfxHit();
-  if (kind === 'drive') sfxHeavyHit();
-  if (kind === 'guard') sfxGuard();
-  if (kind === 'patch') sfxHeal();
-  updateBattleUI(message);
-  if (battle.enemyHP <= 0) {
-    setTimeout(() => finishBattle(true), 550);
-    return;
-  }
-  setTimeout(() => {
-    const base = state.ai === 'ORACLE' && kind === 'drive' ? 8 : (battle.round % 3 === 0 ? 15 : 11);
-    const hit = battle.guard ? Math.ceil(base / 2) : base;
-    battle.guard = false;
-    battle.heroHP = Math.max(0, battle.heroHP - hit);
-    battle.round++;
-    battleIntensity = Math.min(1, (battle.round - 1) / 3);
+  } else sfxHit();
+  updateBattleUI(lines.join(' '));
+  if (battle.enemyHP <= 0) { setTimeout(() => finishBattle(true), 600); return; }
+  setTimeout(() => enemyAct(), 700);
+}
+function enemyAct() {
+  const intent = battle.enemyIntent;
+  let log;
+  if (intent.kind === 'heal') {
+    const healed = Math.min(battle.enemyMax - battle.enemyHP, intent.amount);
+    battle.enemyHP = Math.min(battle.enemyMax, battle.enemyHP + intent.amount);
+    log = `NULL-01 recharges ${healed} HP.`;
+    sfxGuard();
+  } else if (battle.evade) {
+    log = `${state.robot.name} slipped the ${intent.name} entirely.`;
+    sfxSelect();
+  } else if (battle.heroPos.c !== intent.col) {
+    log = `The ${intent.name} rakes the ${COLUMN_NAMES[intent.col]} column — you step clear.`;
+    sfxSelect();
+  } else {
+    let dmg = intent.dmg;
+    if (battle.guard) dmg = Math.ceil(dmg / 2);
+    battle.heroHP = Math.max(0, battle.heroHP - dmg);
     sfxEnemyHit();
     battle.heroModel.position.x -= .25;
     setTimeout(() => battle.heroModel.position.x += .25, 160);
-    if (battle.heroHP <= 0) {
-      updateBattleUI(`NULL-01 lands ${hit}. Your partner needs a breather.`);
-      setTimeout(() => finishBattle(false), 500);
-      return;
-    }
-    battleAnimating = false;
-    updateBattleUI(`NULL-01 throws ${hit} damage across the lane. Your turn.`);
-  }, 850);
+    log = `NULL-01 lands ${intent.name} for ${dmg}${battle.guard ? ' (guarded)' : ''}.`;
+  }
+  battle.guard = false;
+  battle.evade = false;
+  battle.enemyPos = { c: Math.floor(Math.random() * 3), r: Math.floor(Math.random() * 3) };
+  battle.round++;
+  battleIntensity = Math.min(1, (battle.round - 1) / 3);
+  battleAnimating = false;
+  if (battle.heroHP <= 0) {
+    updateBattleUI(log);
+    setTimeout(() => finishBattle(false), 500);
+    return;
+  }
+  rollEnemyIntent();
+  battle.moved = false;
+  drawTo(5);
+  updateBattleUI(log + ' Your turn — read the telegraph and line up.');
 }
 function finishBattle(won) {
   battle.done = true;
@@ -979,10 +1087,20 @@ function finishBattle(won) {
     state.wins++;
     state.chips += 4;
     state.scrap += 2;
+    const dropPool = ['prism', 'coil'].filter(p => !state.parts[p]);
+    let dropLine;
+    if (dropPool.length) {
+      const drop = dropPool[Math.floor(Math.random() * dropPool.length)];
+      state.parts[drop] = true;
+      dropLine = drop === 'prism' ? 'It dropped a PRISM PLATING — bright armor, now yours.' : 'It dropped a PHASE COIL — resonant wire for your AI Drive.';
+    } else {
+      state.scrap += 2;
+      dropLine = 'Its cache held only more salvage — +2 scrap.';
+    }
     save();
     refreshHud();
     $('finish-title').textContent = 'SIGNAL SECURED';
-    $('finish-copy').textContent = 'NULL-01 was carrying a packet of stolen memories. You recovered 4 data chips and 2 salvage. The heartbeat in the static is still there, farther out.';
+    $('finish-copy').textContent = `NULL-01 was carrying a packet of stolen memories. You recovered 4 data chips and 2 salvage. ${dropLine} The heartbeat in the static is still there, farther out.`;
   } else {
     $('finish-title').textContent = 'PARTNER DOWN';
     $('finish-copy').textContent = `${state.robot.name} is safe. Wren will patch you up back in town; the Gate can wait until you are ready.`;
@@ -1134,3 +1252,9 @@ updateTitle();
 refreshHud();
 resize();
 frameLoop();
+// QA debug handle (inert unless invoked from the console; used by the night-shift verification harness).
+window.__bitspringDebug = {
+  startBattle, executeQueue, toggleChip, moveHero, enemyAct, refreshHud,
+  get battle() { return battle; },
+  get state() { return state; }
+};
