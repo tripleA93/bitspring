@@ -75,3 +75,12 @@ Append new entries at the END, newest last. Format: `## <YYYY-MM-DD HH:MM> — <
 - Migration: old saves' SPARK/BASTION/ORACLE map → KINDLE/MOSS/ECHO; missing part slots backfilled to starter kit on load, so no save breaks.
 - Verified live on `localhost:8123`: build → 5-slot parts bay renders; `setPart` derives correct stats (TIDAL+horned=64hp/7atk; +volt+overclock=60hp/14atk); 6 AI cards + flavor lines; battle hero HP=60 (matches robotStats); resolveDrive correct for all 6; TIDE strike+heal, VOLT recoil, ECHO fog, full win path (SIGNAL SECURED) all clean. Syntax PASS (67,705 chars).
 - Commit `17eb1d2`, pushed. NEXT: P1.7 — Day/Mission system + Day 1.
+
+## 2026-10-10 08:14 — P1.7 Day/Mission system + Day 1
+
+- Added a Day/Mission system: `state.day` + `state.mission` (serializable, persisted in the v2 save). `newMission(1)` builds "FIRST CONTACT" with 3 objectives — meet Wren → build robot → win a Gate match.
+- TWEWY-style day-card overlay: fresh New Game shows a "DAY 1 — FIRST CONTACT" card (BEGIN ▸) before the intro; completing all objectives triggers a "DAY 1 — CLEAR / DAY 2 — SIGNAL HUNT" teaser card on return to town, followed by a Wren dialogue. Day card is Enter/Space dismissable and blocks movement/interaction while open.
+- Mission tracker HUD (top-left): live objective list with ▸/✓ markers, header flips to CLEAR on completion; hidden during battle and on the title screen.
+- Objective hooks: `interact`→Wren (meet-wren), `buildRobot` (build-robot), `finishBattle(won)` (win-gate → teaserPending → `returnTown` shows the end card). Existing saves reconcile on load (robot→build done, wins>0→gate done).
+- Verified live on localhost:8123 — fresh flow (canvas 640×360 → day card → intro → tracker), full objective chain, save/reload persistence, day-end card + Wren teaser, tracker hides in battle; syntax PASS (71,630 chars).
+- Commit `cc0709f`, pushed. NEXT: P1.8 — Scan & thoughts (hold [S] near NPCs).
