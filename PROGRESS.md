@@ -18,3 +18,11 @@ Append new entries at the END, newest last. Format: `## <YYYY-MM-DD HH:MM> — <
 - Verified in a live browser: canvas 640×360 present, start screen → click `#start-button` → HUD shows `flex`, zone BITSPRING, zero console errors.
 - Commit `714b033`, pushed to `main`. Behavior identical; game fully loads and plays.
 - NEXT: P1.1b (de-minify `src/main.js`, zero behavior change).
+
+## 2026-10-10 02:55 — P1.1b De-minify src/main.js
+
+- Reformatted `src/main.js` (36 KB minified → 42 KB readable): per-function multi-line bodies, named-section comments, expanded one-liner helpers (`box`, `mat`, `labelSprite`, model builders, audio, panels, battle).
+- Zero behavior change: preserved every string/Unicode glyph verbatim, the `||=` in `mat()`, all `?.` optional chains, the nested backtick template in the AI panel, and the internal newlines of the multi-line HTML template literals. No names/values altered.
+- Bumped cache-buster `src/main.js?v=1` → `?v=2` in `index.html`.
+- Verified: `node tools/syntax-check.mjs` PASS (42,419 chars); live browser on `localhost:8123` — canvas 640×360 present, `#start-button` → HUD flex + BITSPRING zone + intro dialogue, zero runtime errors. (rAF throttled headless → movement/panel paths not drivable, same limit as prior shift; those paths were already play-tested pre-refactor.)
+- NEXT: P1.2 — models & look upgrade (user priority: "nice models").
