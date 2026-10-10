@@ -68,6 +68,23 @@
   .trade-row button{border:1px solid #5d8799;background:#102b3b;color:var(--cyan);padding:8px 10px;font-size:9px;cursor:pointer;white-space:nowrap}
   .trade-row button:disabled{opacity:.4;cursor:not-allowed}
   .message{min-height:20px;margin-top:11px;color:var(--lime);font-size:10px}
+  .stat-preview{display:flex;gap:10px;margin:8px 0 15px}
+  .stat{flex:1;border:1px solid #315166;background:#0b1e2d;padding:9px 11px;text-align:center}
+  .stat-k{display:block;font-size:8px;color:var(--muted);letter-spacing:.14em;margin-bottom:5px}
+  .stat-v{font:11px 'Press Start 2P',monospace}
+  .stat-v.lime{color:var(--lime)}.stat-v.cyan{color:var(--cyan)}.stat-v.pink{color:var(--pink)}
+  .parts-bay{display:grid;gap:9px}
+  .part-slot{border:1px solid #315166;background:#0b1e2d;padding:10px 11px}
+  .slot-head{font:8px 'Press Start 2P',monospace;color:var(--cyan);margin-bottom:9px;letter-spacing:.06em}
+  .slot-cur{color:var(--muted);font:9px 'Space Mono',monospace;letter-spacing:.04em;margin-left:6px}
+  .part-opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+  .part-opt{border:1px solid #3a5e73;background:#0a1a28;color:#bcd3df;padding:7px 8px;font-size:9px;cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:3px}
+  .part-opt:hover{border-color:var(--cyan)}
+  .part-opt.on{border-color:var(--lime);box-shadow:inset 0 0 0 1px var(--lime)}
+  .part-opt .pg{font-size:14px;color:var(--cyan);line-height:1}
+  .part-opt .pn{font:7px 'Press Start 2P',monospace;color:#e4f5fa;line-height:1.5}
+  .part-opt .ps{font-size:8px;color:var(--muted)}
+  .choice .ai-line{display:block;font-size:9px;color:#9fc7d6;font-style:italic;margin-top:8px;line-height:1.5}
   .start-screen{position:absolute;z-index:20;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(120deg,rgba(4,12,20,.94),rgba(7,22,34,.55)),radial-gradient(ellipse at 70% 52%,#15506b 0%,#0b1a29 50%,#07121d 100%);}
   .title-layout{width:min(1060px,calc(100vw - 44px));display:grid;grid-template-columns:1fr .83fr;align-items:center;gap:38px}
   .title-mark{font:clamp(28px,6vw,68px) 'Press Start 2P',monospace;line-height:1.15;color:var(--lime);text-shadow:5px 5px #163f4b,9px 9px #04101a;letter-spacing:-.08em}

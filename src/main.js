@@ -204,7 +204,66 @@ function frameColors(frame) {
     MOSS: { main: 0x54a46d, edge: 0xc9fa68, core: 0xf4ffd1 }
   })[frame] || { main: 0x399cce, edge: 0x8af6ec, core: 0xe1fff5 };
 }
-function createRobot(frame = 'TIDAL', name = 'PIP', scale = 1) {
+// --- Parts & Ghostlight AI templates (Robopon workbench depth) ---
+const PART_SLOTS = ['head', 'arms', 'legs', 'battery', 'core'];
+const PARTS_LIBRARY = {
+  visor:     { slot: 'head',    name: 'VISOR',         hp: 0,  atk: 0, glyph: '◉', desc: 'Clear optics. A steady read.' },
+  horned:    { slot: 'head',    name: 'HORNED CROWN',  hp: 0,  atk: 2, glyph: '▲', desc: 'A crest that says: hit me first.' },
+  dome:      { slot: 'head',    name: 'ARMOR DOME',    hp: 4,  atk: 0, glyph: '◍', desc: 'Thick shell for the thinkers.' },
+  grip:      { slot: 'arms',    name: 'GRIP HANDS',    hp: 0,  atk: 0, glyph: '✋', desc: 'Standard manipulators.' },
+  claw:      { slot: 'arms',    name: 'STRIKE CLAWS',  hp: 0,  atk: 3, glyph: '⛏', desc: 'Sharp. Adds punch to AI Drive.' },
+  shield:    { slot: 'arms',    name: 'VANGUARD SHIELD', hp: 4, atk: 0, glyph: '▣', desc: 'Brace against the worst.' },
+  strider:   { slot: 'legs',    name: 'STRIDER LEGS',  hp: 0,  atk: 0, glyph: '‖', desc: 'Balanced stance.' },
+  tread:     { slot: 'legs',    name: 'TREAD BASE',    hp: 5,  atk: 0, glyph: '▬', desc: 'Low and planted. Hard to topple.' },
+  boost:     { slot: 'legs',    name: 'BOOST THRUSTERS', hp: 0, atk: 2, glyph: '»', desc: 'Legs that answer before you ask.' },
+  cell:      { slot: 'battery', name: 'STANDARD CELL', hp: 0,  atk: 0, glyph: '▱', desc: 'Reliable juice.' },
+  volt:      { slot: 'battery', name: 'VOLT CELL',     hp: -2, atk: 3, glyph: '⚡', desc: 'Hot current. Powerful, brittle.' },
+  reserve:   { slot: 'battery', name: 'RESERVE CELL',  hp: 6,  atk: 0, glyph: '▰', desc: 'A tank for long nights.' },
+  pulse:     { slot: 'core',    name: 'PULSE CORE',    hp: 0,  atk: 0, glyph: '◈', desc: 'A steady heartbeat.' },
+  overclock: { slot: 'core',    name: 'OVERCLOCK CORE', hp: -2, atk: 4, glyph: '◉', desc: 'Redlines the Drive.' },
+  guardian:  { slot: 'core',    name: 'GUARDIAN CORE', hp: 5,  atk: 0, glyph: '◈', desc: 'A core that shields its host.' }
+};
+const STARTER_PARTS = { head: 'visor', arms: 'grip', legs: 'strider', battery: 'cell', core: 'pulse' };
+const FRAME_STATS = {
+  CINDER: { hp: 58, atk: 7 },
+  TIDAL:  { hp: 64, atk: 5 },
+  MOSS:   { hp: 70, atk: 3 }
+};
+const AI_TEMPLATES = {
+  KINDLE: { tag: 'AGGRESSIVE',   color: '#ffb958', glyph: '▲', line: '“Burn bright. Hit first, hit last.”',      desc: 'Hot instincts — AI Drive lands hard.',           driveBase: 20 },
+  TIDE:   { tag: 'SUPPORT',      color: '#71c9a4', glyph: '≈', line: '“Steady. We hold the line together.”',      desc: 'A calm current — AI Drive also restores HP.',     driveBase: 12, heal: 10 },
+  VOLT:   { tag: 'FAST / RISKY', color: '#ffd073', glyph: '⚡', line: '“Faster. We outrun the hit.”',              desc: 'Reckless speed — big Drive, small recoil.',       driveBase: 26, recoil: 4 },
+  MOSS:   { tag: 'GUARD',        color: '#c9fa68', glyph: '▣', line: '“Root down. They won’t move us.”',          desc: 'Patient — AI Drive raises your guard.',           driveBase: 8,  guard: true },
+  ECHO:   { tag: 'DECEPTION',    color: '#c78cff', glyph: '◐', line: '“Let them chase the wrong shadow.”',        desc: 'Tricky — AI Drive muddies the next attack.',     driveBase: 14, weaken: true },
+  HOLLOW: { tag: 'WILDCARD',     color: '#5ff6e7', glyph: '❋', line: '“Roll the dice. The Signal loves a gamble.”', desc: 'Unpredictable — every Drive is a gamble.',       driveBase: null, wild: true }
+};
+const AI_MIGRATE = { SPARK: 'KINDLE', BASTION: 'MOSS', ORACLE: 'ECHO' };
+function robotStats(robot) {
+  const f = FRAME_STATS[robot?.frame] || FRAME_STATS.TIDAL;
+  let hp = f.hp, atk = f.atk;
+  for (const slot of PART_SLOTS) {
+    const part = PARTS_LIBRARY[robot?.[slot]];
+    if (part) { hp += part.hp; atk += part.atk; }
+  }
+  if (state.parts?.prism) hp += 10;
+  if (state.parts?.coil) atk += 2;
+  return { hp, atk };
+}
+function aiTemplate() { return AI_TEMPLATES[state.ai] || AI_TEMPLATES.KINDLE; }
+function resolveDrive() {
+  let t = aiTemplate();
+  if (t.wild) {
+    const others = Object.values(AI_TEMPLATES).filter(x => !x.wild);
+    t = others[Math.floor(Math.random() * others.length)];
+  }
+  const spec = {
+    dmg: (t.driveBase ?? 20) + robotStats(state.robot).atk,
+    heal: t.heal, recoil: t.recoil, guard: t.guard, weaken: t.weaken, wild: aiTemplate().wild
+  };
+  if (state.parts?.coil && spec.heal) spec.heal += 4;
+  return spec;
+}
+function createRobot(frame = 'TIDAL', name = 'PIP', scale = 1, build = null) {
   const c = frameColors(frame), g = new THREE.Group();
   g.scale.setScalar(scale);
   const coreMat = new THREE.MeshLambertMaterial({ color: c.core, emissive: c.core, emissiveIntensity: .6 });
@@ -258,6 +317,37 @@ function createRobot(frame = 'TIDAL', name = 'PIP', scale = 1) {
   if (frame === 'MOSS') {
     box(g, -.56, 2.18, 0, .32, .48, .3, c.edge);
     box(g, .56, 2.18, 0, .32, .48, .3, c.edge);
+  }
+  // part-specific kit (workbench depth — model reflects the build)
+  if (build) {
+    if (build.head === 'horned') {
+      box(g, -.32, 2.5, 0, .16, .34, .16, c.edge);
+      box(g, .32, 2.5, 0, .16, .34, .16, c.edge);
+    }
+    if (build.head === 'dome') {
+      box(g, 0, 2.6, 0, 1.12, .34, 1.02, c.edge);
+    }
+    if (build.arms === 'claw') {
+      box(g, -.84, .5, .18, .18, .26, .18, c.core, { emissive: c.core, emissiveIntensity: .5 });
+      box(g, .84, .5, .18, .18, .26, .18, c.core, { emissive: c.core, emissiveIntensity: .5 });
+    }
+    if (build.arms === 'shield') {
+      box(g, -.9, .86, .34, .16, .66, .1, c.edge);
+    }
+    if (build.legs === 'tread') {
+      box(g, -.42, .08, .13, .74, .2, .86, c.main);
+      box(g, .42, .08, .13, .74, .2, .86, c.main);
+    }
+    if (build.legs === 'boost') {
+      box(g, -.42, .3, -.36, .3, .18, .18, c.core, { emissive: c.core, emissiveIntensity: .6 });
+      box(g, .42, .3, -.36, .3, .18, .18, c.core, { emissive: c.core, emissiveIntensity: .6 });
+    }
+    if (build.battery === 'volt') {
+      box(g, 0, 1.15, -.64, .2, .3, .1, c.core, { emissive: c.core, emissiveIntensity: .8 });
+    }
+    if (build.core === 'overclock') {
+      box(g, 0, 1.18, .7, .1, .32, .1, c.edge, { emissive: c.edge, emissiveIntensity: .9 });
+    }
   }
   blobShadow(g, .95, .42);
   g.coreMat = coreMat;
@@ -350,7 +440,7 @@ companion.add(buddyModel);
 let obstacles = [];
 const state = {
   started: false, zone: 'town', chips: 8, scrap: 1, parts: {}, robot: null, ai: null, roster: [],
-  activeTab: 'build', selectedFrame: 'TIDAL', selectedAI: 'SPARK', message: '', introSeen: false, wins: 0
+  activeTab: 'build', selectedFrame: 'TIDAL', selectedAI: 'KINDLE', message: '', introSeen: false, wins: 0
 };
 const keys = {};
 let dialogueQueue = [];
@@ -559,7 +649,17 @@ function load() {
     }
     if (raw) {
       const s = JSON.parse(raw);
-      if (s) Object.assign(state, s);
+      if (s) {
+        Object.assign(state, s);
+        // migrate legacy 3-template AI names → 6 Ghostlight templates (P1.6)
+        if (AI_MIGRATE[state.ai]) state.ai = AI_MIGRATE[state.ai];
+        if (state.robot && AI_MIGRATE[state.robot.ai]) state.robot.ai = AI_MIGRATE[state.robot.ai];
+        if (Array.isArray(state.roster)) state.roster.forEach(r => { if (AI_MIGRATE[r.ai]) r.ai = AI_MIGRATE[r.ai]; });
+        // backfill part slots for pre-workbench robots so they never render empty
+        const fill = (r) => { for (const slot of PART_SLOTS) if (!r[slot]) r[slot] = STARTER_PARTS[slot]; };
+        if (state.robot) fill(state.robot);
+        if (Array.isArray(state.roster)) state.roster.forEach(fill);
+      }
       savePresent = true;
     }
   } catch {}
@@ -572,7 +672,7 @@ function refreshHud() {
   if (state.robot) {
     $('hud-bot-name').textContent = state.robot.name;
     $('hud-bot-detail').textContent = `${state.robot.frame} FRAME • ${state.ai || 'NO AI CORE'}`;
-    const n = createRobot(state.robot.frame, state.robot.name, .48);
+    const n = createRobot(state.robot.frame, state.robot.name, .48, state.robot);
     buddyModel = n;
     companion.clear();
     companion.add(n);
@@ -656,13 +756,16 @@ function renderPanel() {
     const robots = state.roster || [];
     html += `<p class="section-note">A partner is never inventory. The town trade board can copy a robot's frame pattern for a neighbor, but the original stays with you. Register a new frame at the Hatchery.</p><div class="trade-list">${robots.length ? robots.map((r, i) => `<div class="trade-row"><div class="trade-icon">${i === 0 ? '✦' : '▣'}</div><div class="trade-copy"><strong>${r.name}</strong><small>${r.frame} FRAME • ${r.ai || 'UNTRAINED'} AI • ${r.active ? 'YOUR PARTNER' : 'ROSTER'}</small></div><button data-active="${i}" ${r.active ? 'disabled' : ''}>${r.active ? 'ACTIVE' : 'SET PARTNER'}</button></div>`).join('') : `<p class="section-note">No robot designs registered yet. The Hatchery is just down the lane.</p>`}</div>`;
   } else if (isAI) {
-    html += `<p class="section-note">A Ghostlight is a small, trained decision engine. Pick one and teach your partner a different way to read danger. Your choice changes its AI Drive in battle.</p><div class="cards">
- <button class="choice ${state.selectedAI === 'SPARK' ? 'selected' : ''}" data-ai="SPARK"><span class="chip">OFFENSE</span><i class="swatch" style="background:#ffb958"></i><strong>SPARK</strong><p>Quick instincts. AI Drive hits hard and builds extra tempo.</p></button>
- <button class="choice ${state.selectedAI === 'BASTION' ? 'selected' : ''}" data-ai="BASTION"><span class="chip">DEFENSE</span><i class="swatch" style="background:#71c9a4"></i><strong>BASTION</strong><p>Keep your partner standing. AI Drive restores a little HP.</p></button>
- <button class="choice ${state.selectedAI === 'ORACLE' ? 'selected' : ''}" data-ai="ORACLE"><span class="chip">TACTICS</span><i class="swatch" style="background:#c78cff"></i><strong>ORACLE</strong><p>Read the next attack. AI Drive deals steady damage and reveals it.</p></button>
- </div><div class="field-row"><div class="field"><label>Selected core</label><input value="${state.selectedAI} • Ghostlight class" readonly></div><button class="action" id="install-ai" ${!state.robot || state.chips < 1 ? 'disabled' : ''}>${state.ai === state.selectedAI ? 'CORE INSTALLED' : 'INSTALL • 1 DATA CHIP'}</button></div><p class="section-note">${!state.robot ? 'First assemble a frame, then come back to install its mind.' : state.ai ? `Installed now: ${state.ai}. Changing cores costs one data chip.` : 'One data chip covers the first core installation.'}</p>`;
+    html += `<p class="section-note">A Ghostlight is a small, trained mind. Install one to set how your partner reads danger — and how its AI Drive behaves in battle. There are six, and none of them agree on anything.</p><div class="cards ai-cards">`;
+    for (const [id, t] of Object.entries(AI_TEMPLATES)) {
+      html += `<button class="choice ${state.selectedAI === id ? 'selected' : ''}" data-ai="${id}"><span class="chip">${t.tag}</span><i class="swatch" style="background:${t.color}"></i><strong>${id}</strong><p>${t.desc}</p><small class="ai-line">${t.line}</small></button>`;
+    }
+    html += `</div><div class="field-row"><div class="field"><label>Selected core</label><input value="${state.selectedAI} • Ghostlight class" readonly></div><button class="action" id="install-ai" ${!state.robot || state.chips < 1 ? 'disabled' : ''}>${state.ai === state.selectedAI ? 'CORE INSTALLED' : 'INSTALL • 1 DATA CHIP'}</button></div><p class="section-note">${!state.robot ? 'First assemble a frame, then come back to install its mind.' : state.ai ? `Installed now: ${state.ai} (${AI_TEMPLATES[state.ai]?.tag || 'UNTRAINED'}). Changing cores costs one data chip.` : 'One data chip covers the first core installation.'}</p>`;
   } else {
-    html += `<p class="section-note">Choose a frame, give it a name, and make a partner. You do not need to know how to build a robot yet; everyone starts with a frame and a promise.</p><div class="cards">${frameCard('CINDER', 'Hot-start frame. Hits a little harder, with less armor.', 0xe87948, 'QUICK')}${frameCard('TIDAL', 'A steady all-rounder with a bright, stable core.', 0x399cce, 'BALANCED')}${frameCard('MOSS', 'Sturdy legs and a patient shield response.', 0x54a46d, 'STURDY')}</div><div class="field-row"><div class="field"><label>Partner call sign</label><input id="robot-name" maxlength="12" value="${state.robot?.name || 'PIP'}" placeholder="e.g. PIP"></div><button class="action" id="build-robot" ${state.chips < 3 ? 'disabled' : ''}>${state.robot ? 'REGISTER ANOTHER • 3 CHIPS' : 'BUILD PARTNER • 3 CHIPS'}</button></div><p class="section-note">${state.robot ? `Active partner: ${state.robot.name} (${state.robot.frame}). You can register more frames and change your active partner at the Swap Meet.` : 'A first build costs 3 data chips. Your starter crate contains 8.'}</p>`;
+    html += `<p class="section-note">A partner is frame, limbs, battery, core, and mind. Pick the frame; the Hatchery fits the rest. Every part changes how your partner fights — POWER feeds the AI Drive.</p><div class="cards">${frameCard('CINDER', 'Hot-start frame. Hits a little harder, with less armor.', 0xe87948, 'QUICK')}${frameCard('TIDAL', 'A steady all-rounder with a bright, stable core.', 0x399cce, 'BALANCED')}${frameCard('MOSS', 'Sturdy legs and a patient shield response.', 0x54a46d, 'STURDY')}</div><div class="field-row"><div class="field"><label>Partner call sign</label><input id="robot-name" maxlength="12" value="${state.robot?.name || 'PIP'}" placeholder="e.g. PIP"></div><button class="action" id="build-robot" ${state.chips < 3 ? 'disabled' : ''}>${state.robot ? 'REGISTER ANOTHER • 3 CHIPS' : 'BUILD PARTNER • 3 CHIPS'}</button></div>${statPreview()}`;
+    html += state.robot
+      ? `<p class="section-note">PARTS BAY — rework ${state.robot.name}’s loadout. Each slot has three fittings; swapping is free while you are in the Hatchery.</p><div class="parts-bay">${PART_SLOTS.map(slotRow).join('')}</div>`
+      : `<p class="section-note">A first build costs 3 data chips and ships with a starter kit: visor, grip hands, strider legs, a standard cell, and a pulse core. Your starter crate contains 8.</p>`;
   }
   html += `<div class="message" id="panel-message">${state.message || ''}</div>`;
   $('panel').innerHTML = html;
@@ -673,6 +776,7 @@ function renderPanel() {
   $('panel').querySelectorAll('[data-buy]').forEach(b => b.onclick = () => buyPart(b.dataset.buy));
   $('panel').querySelectorAll('[data-sell]').forEach(b => b.onclick = () => sellTrade(b.dataset.sell));
   $('panel').querySelectorAll('[data-active]').forEach(b => b.onclick = () => setActiveRobot(+b.dataset.active));
+  $('panel').querySelectorAll('[data-slot]').forEach(b => b.onclick = () => setPart(b.dataset.slot, b.dataset.part));
   $('build-robot')?.addEventListener('click', buildRobot);
   $('install-ai')?.addEventListener('click', installAI);
 }
@@ -681,12 +785,45 @@ function panelMessage(s) {
   const m = $('panel-message');
   if (m) m.textContent = s;
 }
+function partModText(p) {
+  const bits = [];
+  if (p.hp) bits.push(`HP ${p.hp > 0 ? '+' : ''}${p.hp}`);
+  if (p.atk) bits.push(`PWR ${p.atk > 0 ? '+' : ''}${p.atk}`);
+  return bits.length ? bits.join(' · ') : '±0';
+}
+function previewStats() {
+  const base = state.robot || STARTER_PARTS;
+  const robot = { frame: state.selectedFrame, head: base.head, arms: base.arms, legs: base.legs, battery: base.battery, core: base.core };
+  return robotStats(robot);
+}
+function statPreview() {
+  const s = previewStats();
+  const ai = state.robot ? (state.ai || '—') : (state.selectedAI || '—');
+  return `<div class="stat-preview"><div class="stat"><span class="stat-k">MAX HP</span><span class="stat-v lime">${s.hp}</span></div><div class="stat"><span class="stat-k">POWER</span><span class="stat-v cyan">${s.atk}</span></div><div class="stat"><span class="stat-k">AI MIND</span><span class="stat-v pink">${ai}</span></div></div>`;
+}
+function slotRow(slot) {
+  const cur = state.robot?.[slot] || STARTER_PARTS[slot];
+  const opts = Object.entries(PARTS_LIBRARY).filter(([, p]) => p.slot === slot)
+    .map(([id, p]) => `<button class="part-opt ${id === cur ? 'on' : ''}" data-slot="${slot}" data-part="${id}" title="${p.desc}"><span class="pg">${p.glyph}</span><span class="pn">${p.name}</span><span class="ps">${partModText(p)}</span></button>`).join('');
+  return `<div class="part-slot"><div class="slot-head">${slot.toUpperCase()}<span class="slot-cur">${PARTS_LIBRARY[cur]?.name || '—'}</span></div><div class="part-opts">${opts}</div></div>`;
+}
+function setPart(slot, id) {
+  if (!state.robot || !PARTS_LIBRARY[id]) return;
+  state.robot[slot] = id;
+  const idx = state.roster?.findIndex(r => r.name === state.robot.name && r.frame === state.robot.frame && r.active);
+  if (idx >= 0) state.roster[idx][slot] = id;
+  save();
+  refreshHud();
+  sfxConfirm();
+  state.message = `${PARTS_LIBRARY[id].name} fitted to the ${slot.toUpperCase()} slot.`;
+  renderPanel();
+}
 function buildRobot() {
   if (state.chips < 3) return;
   const input = $('robot-name');
   const name = (input?.value || 'PIP').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 12) || 'PIP';
   state.chips -= 3;
-  const robot = { name, frame: state.selectedFrame, ai: null, active: true };
+  const robot = { name, frame: state.selectedFrame, ai: null, active: true, ...STARTER_PARTS };
   state.roster = (state.roster || []).map(r => ({ ...r, active: false }));
   state.roster.push(robot);
   state.roster.forEach((r, i) => r.active = i === state.roster.length - 1);
@@ -839,7 +976,7 @@ function createArena() {
     box(battleRoot, x, .72, z, .45, 1.45, .45, palette.cyan, { emissive: palette.cyan, emissiveIntensity: .3 });
     box(battleRoot, x, 1.52, z, .72, .2, .72, palette.lime, { emissive: palette.lime, emissiveIntensity: .7 });
   }
-  const hero = createRobot(state.robot.frame, state.robot.name, 1.45);
+  const hero = createRobot(state.robot.frame, state.robot.name, 1.45, state.robot);
   hero.position.set(-4, 0, 0);
   battleRoot.add(hero);
   const enemy = createRobot('CINDER', 'NULL-01', 1.38);
@@ -868,16 +1005,18 @@ function buildDeck() {
   add('ping', 5); add('boom', 3); add('drive', 2); add('guard', 3); add('patch', 2); add('dash', 1);
   return deck;
 }
-function chipDmg(chip) {
-  if (chip.id === 'drive') {
-    if (state.ai === 'BASTION') return 13 + (state.parts.coil ? 5 : 0);
-    if (state.ai === 'ORACLE') return 18 + (state.parts.coil ? 5 : 0);
-    return 22 + (state.parts.coil ? 7 : 0);
-  }
-  return chip.dmg;
-}
+function chipDmg(chip) { return chip.dmg; }
 function chipDesc(chip) {
-  if (chip.id === 'drive') return state.ai === 'BASTION' ? `STRIKE ${chipDmg(chip)} + RESTORE ${state.parts.coil ? 13 : 9}` : `STRIKE ${chipDmg(chip)}`;
+  if (chip.id === 'drive') {
+    const t = aiTemplate();
+    const dmg = (t.wild ? 20 : (t.driveBase ?? 20)) + robotStats(state.robot).atk;
+    const fx = [];
+    if (t.heal) fx.push(`RESTORE ${state.parts.coil ? t.heal + 4 : t.heal}`);
+    if (t.recoil) fx.push(`RECKLESS −${t.recoil}`);
+    if (t.guard) fx.push('GUARD');
+    if (t.weaken) fx.push('FOG');
+    return t.wild ? `GAMBLE ${dmg}` : `STRIKE ${dmg}${fx.length ? ' ' + fx.join(' ') : ''}`;
+  }
   if (chip.kind === 'atk') return `STRIKE ${chip.dmg}`;
   if (chip.kind === 'guard') return 'HALVE NEXT HIT';
   if (chip.kind === 'heal') return `RESTORE ${chip.amount}`;
@@ -910,7 +1049,7 @@ function startBattle() {
     heroHP: max, heroMax: max, enemyHP: 48, enemyMax: 48,
     deck: buildDeck(), hand: [], discard: [], queue: [],
     heroPos: { c: 1, r: 1 }, enemyPos: { c: 1, r: 1 }, moved: false,
-    guard: false, evade: false, round: 1, done: false, enemyIntent: null, heroModel: null, enemyModel: null
+    guard: false, evade: false, weakened: false, round: 1, done: false, enemyIntent: null, heroModel: null, enemyModel: null
   };
   shuffle(battle.deck);
   drawTo(5);
@@ -926,7 +1065,7 @@ function startBattle() {
   updateBattleUI('A rogue signal crawls out of the static. Line up your column and play up to three chips.');
 }
 function robotMaxHP() {
-  return 60 + (state.robot?.frame === 'MOSS' ? 8 : 0) + (state.parts.prism ? 10 : 0);
+  return robotStats(state.robot).hp;
 }
 function renderHand() {
   const el = $('chip-hand');
@@ -1010,15 +1149,32 @@ function executeQueue() {
     if (hi >= 0) battle.hand.splice(hi, 1);
     battle.discard.push(chip);
     if (chip.kind === 'atk') {
-      const dmg = chipDmg(chip) + (chip.id !== 'drive' && linedUp ? 3 : 0);
-      battle.enemyHP = Math.max(0, battle.enemyHP - dmg);
-      totalDmg += dmg;
-      if (chip.id === 'drive' && state.ai === 'BASTION') {
-        const heal = state.parts.coil ? 13 : 9;
-        battle.heroHP = Math.min(battle.heroMax, battle.heroHP + heal);
-        lines.push(`BASTION restores ${heal} HP, then strikes for ${dmg}.`);
+      if (chip.id === 'drive') {
+        const s = resolveDrive();
+        battle.enemyHP = Math.max(0, battle.enemyHP - s.dmg);
+        totalDmg += s.dmg;
+        if (s.heal) {
+          battle.heroHP = Math.min(battle.heroMax, battle.heroHP + s.heal);
+          lines.push(`${state.robot.name} drives for ${s.dmg}; ${state.ai} restores ${s.heal} HP.`);
+        } else if (s.recoil) {
+          battle.heroHP = Math.max(0, battle.heroHP - s.recoil);
+          lines.push(`${state.robot.name} overdrives for ${s.dmg} — ${s.recoil} HP recoil.`);
+        } else if (s.guard) {
+          battle.guard = true;
+          lines.push(`${state.robot.name} drives ${s.dmg}, rooting into guard.`);
+        } else if (s.weaken) {
+          battle.weakened = true;
+          lines.push(`${state.robot.name} drives ${s.dmg} and fogs NULL-01’s aim.`);
+        } else if (s.wild) {
+          lines.push(`${state.robot.name} gambles — HOLLOW lands ${s.dmg}.`);
+        } else {
+          lines.push(`${state.robot.name} fires AI DRIVE for ${s.dmg}.`);
+        }
       } else {
-        lines.push(`${state.robot.name} fires ${chip.name} for ${dmg}${chip.id !== 'drive' && linedUp ? ' (lined up!)' : ''}.`);
+        const dmg = chipDmg(chip) + (linedUp ? 3 : 0);
+        battle.enemyHP = Math.max(0, battle.enemyHP - dmg);
+        totalDmg += dmg;
+        lines.push(`${state.robot.name} fires ${chip.name} for ${dmg}${linedUp ? ' (lined up!)' : ''}.`);
       }
     } else if (chip.kind === 'guard') {
       battle.guard = true;
@@ -1057,14 +1213,19 @@ function enemyAct() {
   } else {
     let dmg = intent.dmg;
     if (battle.guard) dmg = Math.ceil(dmg / 2);
+    if (battle.weakened) dmg = Math.ceil(dmg / 2);
     battle.heroHP = Math.max(0, battle.heroHP - dmg);
     sfxEnemyHit();
     battle.heroModel.position.x -= .25;
     setTimeout(() => battle.heroModel.position.x += .25, 160);
-    log = `NULL-01 lands ${intent.name} for ${dmg}${battle.guard ? ' (guarded)' : ''}.`;
+    const tags = [];
+    if (battle.guard) tags.push('guarded');
+    if (battle.weakened) tags.push('fogged');
+    log = `NULL-01 lands ${intent.name} for ${dmg}${tags.length ? ' (' + tags.join(', ') + ')' : ''}.`;
   }
   battle.guard = false;
   battle.evade = false;
+  battle.weakened = false;
   battle.enemyPos = { c: Math.floor(Math.random() * 3), r: Math.floor(Math.random() * 3) };
   battle.round++;
   battleIntensity = Math.min(1, (battle.round - 1) / 3);
@@ -1182,7 +1343,7 @@ function newGame() {
     return;
   }
   confirmNew = false;
-  Object.assign(state, { started: false, zone: 'town', chips: 8, scrap: 1, parts: {}, robot: null, ai: null, roster: [], activeTab: 'build', selectedFrame: 'TIDAL', selectedAI: 'SPARK', message: '', introSeen: false, wins: 0 });
+  Object.assign(state, { started: false, zone: 'town', chips: 8, scrap: 1, parts: {}, robot: null, ai: null, roster: [], activeTab: 'build', selectedFrame: 'TIDAL', selectedAI: 'KINDLE', message: '', introSeen: false, wins: 0 });
   try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(SAVE_KEY_V1); } catch {}   // a confirmed erase clears both keys
   savePresent = false;
   begin();
@@ -1255,6 +1416,7 @@ frameLoop();
 // QA debug handle (inert unless invoked from the console; used by the night-shift verification harness).
 window.__bitspringDebug = {
   startBattle, executeQueue, toggleChip, moveHero, enemyAct, refreshHud,
+  robotStats, resolveDrive, openPanel, renderPanel, buildRobot, setPart, installAI,
   get battle() { return battle; },
   get state() { return state; }
 };
