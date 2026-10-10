@@ -440,8 +440,71 @@ companion.add(buddyModel);
 let obstacles = [];
 const state = {
   started: false, zone: 'town', chips: 8, scrap: 1, parts: {}, robot: null, ai: null, roster: [],
-  activeTab: 'build', selectedFrame: 'TIDAL', selectedAI: 'KINDLE', message: '', introSeen: false, wins: 0
+  activeTab: 'build', selectedFrame: 'TIDAL', selectedAI: 'KINDLE', message: '', introSeen: false, wins: 0, day: 1, mission: null
 };
+
+// --- Day / mission system (P1.7) ---
+let dayCardCallback = null;
+function newMission(day) {
+  return {
+    day,
+    name: 'FIRST CONTACT',
+    objectives: [
+      { id: 'meet-wren', label: 'Meet Wren by the plaza', done: false },
+      { id: 'build-robot', label: 'Build your partner at the Hatchery', done: false },
+      { id: 'win-gate', label: 'Win a Battle Gate match', done: false }
+    ],
+    complete: false,
+    teaserPending: false
+  };
+}
+function isDayCardOpen() { return $('day-card').style.display === 'flex'; }
+function renderMission() {
+  const mt = $('mission-tracker');
+  if (!mt) return;
+  const m = state.mission;
+  if (!m || !state.started || state.zone === 'battle') { mt.style.display = 'none'; return; }
+  mt.style.display = 'block';
+  $('mt-day').textContent = 'DAY ' + String(m.day).padStart(2, '0');
+  $('mt-name').textContent = m.complete ? 'CLEAR' : m.name;
+  $('mt-list').innerHTML = m.objectives.map(o =>
+    `<li class="mt-item${o.done ? ' done' : ''}"><span class="mt-mark">${o.done ? '✓' : '▸'}</span>${o.label}</li>`
+  ).join('');
+}
+function completeObjective(id) {
+  const m = state.mission;
+  if (!m || m.complete) return;
+  const o = m.objectives.find(x => x.id === id);
+  if (!o || o.done) return;
+  o.done = true;
+  if (m.objectives.every(x => x.done)) { m.complete = true; m.teaserPending = true; }
+  renderMission();
+  sfxPickup();
+  save();
+}
+function showDayCard({ kicker, title, sub, copy, buttonLabel, onDone }) {
+  $('day-card-kicker').textContent = kicker;
+  $('day-card-title').textContent = title;
+  $('day-card-sub').textContent = sub;
+  $('day-card-copy').textContent = copy;
+  $('day-card-button').textContent = buttonLabel;
+  dayCardCallback = onDone;
+  $('day-card').style.display = 'flex';
+  sfxSelect();
+}
+function showDayEndCard() {
+  showDayCard({
+    kicker: 'DAY 1 — CLEAR',
+    title: 'DAY 2',
+    sub: 'SIGNAL HUNT',
+    copy: 'The Gate’s second heartbeat was a name, not noise: PIP. The Signal has taken an interest. Tomorrow it hunts back — rest up, and keep an eye on the static.',
+    buttonLabel: 'KEEP EXPLORING ▸',
+    onDone: () => showDialogue('WREN', [
+      'You hear it too, then. The Signal counted your win. Whatever watches this town just wrote your name down.',
+      'Day 2 will be different. Get some rest — tomorrow we listen back.'
+    ])
+  });
+}
 const keys = {};
 let dialogueQueue = [];
 let dialogueOpen = false;
@@ -634,7 +697,7 @@ function save() {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       version: 2,
-      chips: state.chips, scrap: state.scrap, parts: state.parts, robot: state.robot, ai: state.ai, roster: state.roster, wins: state.wins, introSeen: state.introSeen
+      chips: state.chips, scrap: state.scrap, parts: state.parts, robot: state.robot, ai: state.ai, roster: state.roster, wins: state.wins, introSeen: state.introSeen, day: state.day, mission: state.mission
     }));
     savePresent = true;
   } catch {}
@@ -659,6 +722,13 @@ function load() {
         const fill = (r) => { for (const slot of PART_SLOTS) if (!r[slot]) r[slot] = STARTER_PARTS[slot]; };
         if (state.robot) fill(state.robot);
         if (Array.isArray(state.roster)) state.roster.forEach(fill);
+        // P1.7: reconcile day + mission for saves from before the Day system
+        if (state.day == null) state.day = 1;
+        if (!state.mission) {
+          state.mission = newMission(1);
+          if (state.robot) state.mission.objectives.find(o => o.id === 'build-robot').done = true;
+          if (state.wins > 0) state.mission.objectives.find(o => o.id === 'win-gate').done = true;
+        }
       }
       savePresent = true;
     }
@@ -677,6 +747,7 @@ function refreshHud() {
     companion.clear();
     companion.add(n);
   }
+  renderMission();
 }
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -832,6 +903,7 @@ function buildRobot() {
   save();
   refreshHud();
   sfxRobot();
+  completeObjective('build-robot');
   state.message = `${name} is registered. A frame is only a beginning; choose a Ghostlight core next.`;
   modalTab = 'ai';
   renderPanel();
@@ -890,7 +962,7 @@ function sellTrade(kind) {
   renderPanel();
 }
 function interact() {
-  if (activeModal()) return;
+  if (activeModal() || isDayCardOpen()) return;
   if (dialogueOpen) { advanceDialogue(); return; }
   if (state.zone === 'battle') return;
   const c = interaction || nearBuilding();
@@ -899,6 +971,7 @@ function interact() {
     return;
   }
   if (c.id === 'wren') {
+    completeObjective('meet-wren');
     showDialogue('WREN', [
       'Hey, new neighbor. I’m Wren. Bitspring is a little town built where three old network routes forgot to end.',
       'The Hatchery makes frames. The Swap Meet keeps our parts moving. The Battle Gate is where we check that our training still works.',
@@ -929,7 +1002,7 @@ function collides(x, z) {
   return obstacles.some(o => Math.abs(x - o.x) < o.w / 2 + .35 && Math.abs(z - o.z) < o.d / 2 + .35);
 }
 function movePlayer(dt) {
-  if (state.zone !== 'town' || activeModal() || dialogueOpen || !state.started) return;
+  if (state.zone !== 'town' || activeModal() || dialogueOpen || !state.started || isDayCardOpen()) return;
   let dx = 0, dz = 0;
   if (keys.KeyW || keys.ArrowUp) dz -= 1;
   if (keys.KeyS || keys.ArrowDown) dz += 1;
@@ -949,7 +1022,7 @@ function movePlayer(dt) {
   companion.position.z += (followZ - companion.position.z) * Math.min(1, dt * 5);
 }
 function updatePrompt() {
-  if (!state.started || state.zone !== 'town' || dialogueOpen || activeModal()) {
+  if (!state.started || state.zone !== 'town' || dialogueOpen || activeModal() || isDayCardOpen()) {
     $('prompt').style.display = 'none';
     return;
   }
@@ -1040,6 +1113,7 @@ function rollEnemyIntent() {
 function startBattle() {
   interaction = null;
   state.zone = 'battle';
+  renderMission();
   setMusicTheme('battle');
   townRoot.visible = false;
   actorRoot.visible = false;
@@ -1246,6 +1320,7 @@ function finishBattle(won) {
   playJingle(won);
   if (won) {
     state.wins++;
+    completeObjective('win-gate');
     state.chips += 4;
     state.scrap += 2;
     const dropPool = ['prism', 'coil'].filter(p => !state.parts[p]);
@@ -1291,6 +1366,11 @@ function returnTown() {
       `Null-01 wasn’t a local bot. I’ve never seen a signal move like that through the old route.`
     ]);
   }
+  if (state.mission?.teaserPending) {
+    state.mission.teaserPending = false;
+    save();
+    showDayEndCard();
+  }
 }
 
 // --- Boot / start ---
@@ -1327,11 +1407,20 @@ function begin() {
   bootGame();
   if (!state.introSeen) {
     state.introSeen = true;
+    state.mission = newMission(1);
     save();
-    showDialogue('BITSpring SIGNAL', [
-      'A new day starts in Bitspring, at the end of the old network. Wren is waiting near the plaza.',
-      'Walk to the Hatchery when you are ready. A starter crate is already paid for.'
-    ]);
+    renderMission();
+    showDayCard({
+      kicker: 'EPISODE 01 — HOME SIGNAL',
+      title: 'DAY 1',
+      sub: 'FIRST CONTACT',
+      copy: 'The Signal wakes for seven days. Today it only watches. Meet Wren, build your partner, and prove yourself at the Battle Gate. Don’t let the town forget you.',
+      buttonLabel: 'BEGIN ▸',
+      onDone: () => showDialogue('BITSpring SIGNAL', [
+        'A new day starts in Bitspring, at the end of the old network. Wren is waiting near the plaza.',
+        'Walk to the Hatchery when you are ready. A starter crate is already paid for.'
+      ])
+    });
   }
 }
 function newGame() {
@@ -1343,7 +1432,7 @@ function newGame() {
     return;
   }
   confirmNew = false;
-  Object.assign(state, { started: false, zone: 'town', chips: 8, scrap: 1, parts: {}, robot: null, ai: null, roster: [], activeTab: 'build', selectedFrame: 'TIDAL', selectedAI: 'KINDLE', message: '', introSeen: false, wins: 0 });
+  Object.assign(state, { started: false, zone: 'town', chips: 8, scrap: 1, parts: {}, robot: null, ai: null, roster: [], day: 1, mission: null, activeTab: 'build', selectedFrame: 'TIDAL', selectedAI: 'KINDLE', message: '', introSeen: false, wins: 0 });
   try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(SAVE_KEY_V1); } catch {}   // a confirmed erase clears both keys
   savePresent = false;
   begin();
@@ -1382,11 +1471,19 @@ window.addEventListener('keydown', e => {
     else if (dialogueOpen) { dialogueOpen = false; $('dialogue').style.display = 'none'; }
     return;
   }
+  if (isDayCardOpen() && (e.code === 'Enter' || e.code === 'Space')) { $('day-card-button').click(); return; }
   if (dialogueOpen && (e.code === 'Enter' || e.code === 'Space')) advanceDialogue();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 $('start-button').onclick = newGame;
 $('continue-button').onclick = begin;
+$('day-card-button').onclick = () => {
+  if (!isDayCardOpen()) return;
+  $('day-card').style.display = 'none';
+  sfxConfirm();
+  const cb = dayCardCallback; dayCardCallback = null;
+  if (cb) cb();
+};
 $('music-toggle').onclick = toggleMusic;
 $('volume-slider').oninput = e => setVolume(e.target.value / 100);
 $('modal-shade').addEventListener('click', e => { if (e.target === $('modal-shade')) closePanel(); });
@@ -1417,6 +1514,7 @@ frameLoop();
 window.__bitspringDebug = {
   startBattle, executeQueue, toggleChip, moveHero, enemyAct, refreshHud,
   robotStats, resolveDrive, openPanel, renderPanel, buildRobot, setPart, installAI,
+  renderMission, completeObjective, showDayCard, showDayEndCard, newMission,
   get battle() { return battle; },
   get state() { return state; }
 };

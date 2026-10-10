@@ -159,3 +159,19 @@
     .touch-pad,.touch-act{display:grid}.touch-act{display:grid;place-items:center}.prompt{bottom:82px;font-size:9px}.dialogue{bottom:78px;padding:12px}.dialogue .line{font-size:11px}
     .battle-ui{inset:auto 8px 8px;grid-template-columns:1fr;gap:6px}.battle-info{padding:8px;display:grid;grid-template-columns:1fr 1fr;column-gap:10px}.battle-info h3{grid-column:1/-1;margin-bottom:4px}.battle-info .battle-log{grid-column:1/-1;margin-top:2px;min-height:18px}.battle-info .label{font-size:8px;margin:4px 0}.battle-actions{padding:8px}.battle-actions-top{font-size:8px}.hand{gap:3px}.chip-card{min-height:50px;padding:4px 2px}.chip-card .chip-glyph{font-size:12px}.chip-card strong{font-size:5px}.chip-card small{font-size:7px}.grid3{grid-template-columns:repeat(3,16px);grid-template-rows:repeat(3,14px)}
   }
+  .mission-tracker{position:absolute;z-index:4;left:18px;top:94px;display:none;border:2px solid #42667d;background:rgba(5,18,30,.91);box-shadow:4px 4px 0 #06101a;padding:10px 12px;min-width:198px;pointer-events:none}
+  .mt-head{display:flex;gap:9px;align-items:baseline;border-bottom:1px solid #315266;padding-bottom:7px;margin-bottom:8px}
+  .mt-day{font:8px 'Press Start 2P',monospace;color:var(--cyan)}
+  .mt-name{font:8px 'Press Start 2P',monospace;color:var(--pink);letter-spacing:.06em}
+  .mt-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+  .mt-item{font-size:10px;color:#a9c2d1;display:flex;gap:7px;align-items:flex-start;line-height:1.55}
+  .mt-item.done{color:var(--muted)}
+  .mt-mark{color:var(--pink);font-weight:700;flex:none}
+  .mt-item.done .mt-mark{color:var(--lime)}
+  .day-card{position:absolute;z-index:15;inset:0;display:none;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(8,28,42,.94),rgba(4,12,20,.98));padding:20px}
+  .day-card-inner{max-width:540px;width:100%;text-align:center;padding:34px 38px;border:3px solid var(--cyan);background:#0b1d2d;box-shadow:10px 10px 0 rgba(0,0,0,.5),inset 0 0 0 2px #1b3b4a}
+  .day-card-kicker{font:8px 'Press Start 2P',monospace;color:var(--pink);letter-spacing:.18em;margin-bottom:18px;line-height:1.8}
+  .day-card-title{font:clamp(26px,5vw,46px) 'Press Start 2P',monospace;color:var(--lime);text-shadow:4px 4px #163f4b;margin:0 0 8px;letter-spacing:-.06em}
+  .day-card-sub{font:11px 'Press Start 2P',monospace;color:var(--cyan);letter-spacing:.18em;margin-bottom:20px;line-height:1.8}
+  .day-card-copy{font-size:12px;line-height:1.9;color:#c1d8e5;margin:0 0 26px}
+  @media(max-width:700px){.mission-tracker{left:8px;top:76px;min-width:150px;padding:7px 8px}.mt-item{font-size:8px}.day-card-inner{padding:24px 20px}}
