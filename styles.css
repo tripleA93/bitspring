@@ -76,6 +76,9 @@
   .world-tag{font:9px 'Press Start 2P',monospace;color:var(--pink);line-height:1.8;margin-bottom:18px}
   .start-button{border:3px solid var(--lime);background:#213d36;color:var(--lime);padding:14px 18px;font:10px 'Press Start 2P',monospace;cursor:pointer;box-shadow:5px 5px 0 #02080c;line-height:1.7}
   .start-button:hover{transform:translate(-1px,-1px);box-shadow:7px 7px 0 #02080c}
+  .title-actions{display:flex;flex-direction:column;gap:14px;align-items:flex-start;margin-top:26px}
+  .start-button.continue{border-color:var(--cyan);background:#12303a;color:var(--cyan)}
+  .start-button.continue:hover{border-color:var(--cyan);box-shadow:7px 7px 0 #02080c}
   .start-help{font-size:9px;color:#8faabd;line-height:1.8;margin-top:18px}
   .hero-card{position:relative;min-height:320px;border:2px solid #4a8493;background:linear-gradient(155deg,#0f3444,#0b1d2d 65%);box-shadow:10px 10px 0 rgba(0,0,0,.45);overflow:hidden;display:grid;place-items:center}
   .hero-card:before,.hero-card:after{content:"";position:absolute;border:1px solid rgba(95,246,231,.22);transform:rotate(45deg)}

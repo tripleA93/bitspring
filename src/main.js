@@ -537,17 +537,31 @@ function playJingle(won) {
 }
 
 // --- Save / load / HUD ---
+const SAVE_KEY = 'bitspring.save.v2';
+const SAVE_KEY_V1 = 'bitspring-save-v1';
+let savePresent = false;
 function save() {
   try {
-    localStorage.setItem('bitspring-save-v1', JSON.stringify({
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      version: 2,
       chips: state.chips, scrap: state.scrap, parts: state.parts, robot: state.robot, ai: state.ai, roster: state.roster, wins: state.wins, introSeen: state.introSeen
     }));
+    savePresent = true;
   } catch {}
 }
 function load() {
   try {
-    const s = JSON.parse(localStorage.getItem('bitspring-save-v1') || 'null');
-    if (s) Object.assign(state, s);
+    let raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) {
+      raw = localStorage.getItem(SAVE_KEY_V1);   // migrate a legacy v1 save up to v2
+      if (raw) localStorage.setItem(SAVE_KEY, JSON.stringify(Object.assign({ version: 2 }, JSON.parse(raw))));
+      // the v1 key is left intact as a backup — never lose a player's save
+    }
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s) Object.assign(state, s);
+      savePresent = true;
+    }
   } catch {}
 }
 function refreshHud() {
@@ -1001,11 +1015,22 @@ function returnTown() {
 }
 
 // --- Boot / start ---
-function begin() {
-  if (state.started) return;
+const NEW_BTN_HTML = 'NEW GAME<br><small style="font:9px \'Space Mono\';color:#d8f8bc">PRESS ENTER</small>';
+let confirmNew = false;
+function hasProgress() {
+  return savePresent && (state.introSeen || state.robot || state.wins > 0 || (state.roster && state.roster.length > 0));
+}
+function updateTitle() {
+  const cont = $('continue-button');
+  if (hasProgress()) {
+    cont.style.display = 'block';
+    $('continue-sub').textContent = state.robot ? `${(state.robot.name || 'PARTNER').toUpperCase()} • ${state.ai || 'NO AI CORE'}` : 'RESUME DAY 01';
+  } else {
+    cont.style.display = 'none';
+  }
+}
+function bootGame() {
   state.started = true;
-  load();
-  buildTown();
   $('start-screen').style.display = 'none';
   $('hud').style.display = 'flex';
   $('music-toggle').style.display = 'block';
@@ -1013,6 +1038,14 @@ function begin() {
   initAudio();
   if (settings.musicOn) startMusic(); else setMusicButton();
   refreshHud();
+}
+function begin() {
+  if (state.started) return;
+  confirmNew = false;
+  $('start-button').innerHTML = NEW_BTN_HTML;
+  load();
+  buildTown();
+  bootGame();
   if (!state.introSeen) {
     state.introSeen = true;
     save();
@@ -1021,6 +1054,20 @@ function begin() {
       'Walk to the Hatchery when you are ready. A starter crate is already paid for.'
     ]);
   }
+}
+function newGame() {
+  if (state.started) return;
+  if (hasProgress() && !confirmNew) {   // safety: one extra click before erasing a save
+    confirmNew = true;
+    $('start-button').innerHTML = 'ERASE SAVE?<br><small style="font:9px \'Space Mono\';color:#ffb3d0">CLICK AGAIN TO CONFIRM</small>';
+    sfxSelect();
+    return;
+  }
+  confirmNew = false;
+  Object.assign(state, { started: false, zone: 'town', chips: 8, scrap: 1, parts: {}, robot: null, ai: null, roster: [], activeTab: 'build', selectedFrame: 'TIDAL', selectedAI: 'SPARK', message: '', introSeen: false, wins: 0 });
+  try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(SAVE_KEY_V1); } catch {}   // a confirmed erase clears both keys
+  savePresent = false;
+  begin();
 }
 function frameLoop() {
   requestAnimationFrame(frameLoop);
@@ -1059,7 +1106,8 @@ window.addEventListener('keydown', e => {
   if (dialogueOpen && (e.code === 'Enter' || e.code === 'Space')) advanceDialogue();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
-$('start-button').onclick = begin;
+$('start-button').onclick = newGame;
+$('continue-button').onclick = begin;
 $('music-toggle').onclick = toggleMusic;
 $('volume-slider').oninput = e => setVolume(e.target.value / 100);
 $('modal-shade').addEventListener('click', e => { if (e.target === $('modal-shade')) closePanel(); });
@@ -1079,6 +1127,10 @@ loadSettings();
 $('volume-slider').value = Math.round(settings.volume * 100);
 buildTown();
 $('start-screen').style.display = 'flex';
+$('music-toggle').style.display = 'block';
+$('volume-ctl').style.display = 'flex';
+setMusicButton();
+updateTitle();
 refreshHud();
 resize();
 frameLoop();

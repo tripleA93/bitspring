@@ -47,3 +47,11 @@ Append new entries at the END, newest last. Format: `## <YYYY-MM-DD HH:MM> — <
 - Verified: `node tools/syntax-check.mjs` PASS (50,293 chars); live browser on `localhost:8123` — canvas 640×360, start → HUD flex, music-toggle ON→OFF toggles, volume slider 32→55 updates, zero console errors.
 - Commit `de9f92d`, pushed to `main`. Zone-variation theme swap (distinct per-zone melody) deferred until more zones exist (Dock Row is P1.9); current town/battle split already varies by theme.
 - NEXT: P1.4 — Save v2 + title flow.
+
+## 2026-10-10 05:31 — P1.4 Save v2 + title flow
+
+- Save schema versioned: new key `bitspring.save.v2` with `version: 2`; `load()` migrates a legacy `bitspring-save-v1` save up to v2 automatically and keeps the v1 key as a backup. No save is ever lost on migration.
+- Title screen rebuilt: `CONTINUE` (only when a save exists; shows robot name + AI, else "RESUME DAY 01") alongside `NEW GAME`. A confirmed erase (double-click "ERASE SAVE?") clears both keys so a stale v1 backup can't resurrect an old save.
+- Music toggle + volume slider now also visible on the title screen (shown at boot), so music is controllable before starting. Enter = Continue; `#start-button` = New Game.
+- Verified live on `localhost:8123`: fresh boot → no CONTINUE, NEW GAME starts + intro dialogue + v2 written; reload → CONTINUE appears and resumes; seeded v1 migrates to v2 (`SPROCKET • SPARK`); erase flow wipes clean (chips→8, v1 removed). `node tools/syntax-check.mjs` PASS (52,384 chars).
+- Commit pending (this shift). NEXT: P1.5 — Battle v2 (Battle-Network-style grid battles).
