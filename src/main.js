@@ -355,6 +355,106 @@ function createRobot(frame = 'TIDAL', name = 'PIP', scale = 1, build = null) {
   return g;
 }
 
+// --- NPC roster & thoughts (P1.8: hold S to scan) ---
+const SCAN_RADIUS = 4.5;
+const NPC_DEFS = [
+  { id: 'wren', name: 'WREN', kind: 'human', torso: 0x367d9a, accent: 0xff70ae, x: -2.2, z: 6.2, labelY: 2.15, label: '#ffaad0', idea: null,
+    thoughts: ['That second heartbeat in the Gate… it isn’t noise. It’s a name.', 'Seven days. That’s how long the Signal runs. Then it forgets — or you do.', 'Build a partner. Trust it. That’s the whole trick.'] },
+  { id: 'moss', name: 'MOSS', kind: 'human', torso: 0xb9758d, accent: 0xc9fa68, x: 8.6, z: 2.1, labelY: 2.15, label: '#c9fa68', idea: null,
+    thoughts: ['Two scrap for a chip. Fair is fair.', 'Nothing leaves Bitspring. A neighbor’s problem is a neighbor’s part.', 'Trades outlast memories here. That’s the point of a small town.'] },
+  { id: 'nella', name: 'NELLA', kind: 'human', torso: 0xd98bb0, accent: 0x5ff6e7, x: 4.4, z: 6.4, labelY: 2.15, label: '#5ff6e7', idea: 'home-seven',
+    thoughts: ['Counting houses again. Seven on the west lane.', 'The seventh one has a blue door. Nobody lives there now.', 'A package came for it once. Then the truck stopped coming.'] },
+  { id: 'courier', name: 'COURIER', kind: 'robot', frame: 'TIDAL', x: 3.2, z: 1.6, labelY: 1.55, label: '#8af6ec', idea: null, needs: 'home-seven',
+    thoughts: ['route… [CORRUPT]… deliver to… seven…', 'west lane… blue door… then the address unravels.', 'a package without a door is just a heavy box.'],
+    doneThoughts: ['delivered. a blue door on the west lane. route restored.', 'thank you. the town forgets, but I carry it anyway.'] },
+  { id: 'pipo', name: 'PIPO', kind: 'human', torso: 0x8ba4b0, accent: 0xffa75a, x: -5.8, z: -1.6, labelY: 2.15, label: '#ffa75a', idea: null,
+    thoughts: ['I remember when the network had one street and no name.', 'Kids think the static is new. It was always there — it just got louder.', 'Check your battery before you check your luck.'] },
+  { id: 'six', name: 'SIX', kind: 'human', torso: 0x5e7f9e, accent: 0xc78cff, x: -4.4, z: -4.2, labelY: 2.15, label: '#c78cff', idea: null,
+    thoughts: ['A hundred feeds and none of them know we exist.', 'The ads are getting weird. They advertise things I only dreamed about.', 'Signal’s bad tonight. Or maybe it’s listening.'] },
+  { id: 'gull', name: 'GULL', kind: 'human', torso: 0x5fae9a, accent: 0xffd073, x: 12.6, z: -4.0, labelY: 2.15, label: '#ffd073', idea: null,
+    thoughts: ['Drones eat the sky here. Crumbs of light.', 'If you launch a box and it never lands, who owns the box?', 'I’ve lost three kites to the static. I’m keeping the fourth.'] },
+  { id: 'tally', name: 'TALLY', kind: 'human', torso: 0x7a6bb0, accent: 0xc9fa68, x: 12.4, z: 1.0, labelY: 2.15, label: '#c9fa68', idea: null,
+    thoughts: ['Lantern oil, frame polish, fresh cores. Ask for anything.', 'The Gate’s been hungry lately. More kids go in than come out talking.', 'If Moss shortchanges you, it’s on purpose and it’s a lesson.'] },
+  { id: 'orr', name: 'ORR', kind: 'human', torso: 0xb07a6a, accent: 0x5ff6e7, x: -12.2, z: 4.6, labelY: 2.15, label: '#5ff6e7', idea: null,
+    thoughts: ['The seventh house is empty, but its porch light still comes on at dusk.', 'Someone still pays the power bill. Or something does.', 'Blue door, west lane. Don’t linger — the light follows you home.'] },
+  { id: 'mav', name: 'MAV', kind: 'human', torso: 0x4e7d95, accent: 0xff70ae, x: 0, z: -4.4, labelY: 2.15, label: '#ff70ae', idea: null,
+    thoughts: ['The Gate doesn’t fight. It tests. There’s a difference.', 'Every match is a question. Lose, and it asks again louder.', 'Null units come from the static. Where the static comes from — that’s the match we all lose.'] }
+];
+function npcThoughts(def) {
+  return (def.id === 'courier' && state.imprintDone && def.doneThoughts) ? def.doneThoughts : def.thoughts;
+}
+function bubbleHTML(def) {
+  return `<div class="sb-name">${def.name}</div>` + npcThoughts(def).map(t => `<div class="sb-line">${t}</div>`).join('');
+}
+function npcsInRange() {
+  return npcs.filter(n => Math.hypot(player.position.x - n.def.x, player.position.z - n.def.z) <= SCAN_RADIUS);
+}
+function scanningNow() {
+  if (!state.started || state.zone !== 'town' || dialogueOpen || activeModal() || isDayCardOpen()) return false;
+  return !!keys['KeyS'] && npcsInRange().length > 0;
+}
+function showIdeaToast(text) {
+  const t = $('idea-toast');
+  if (!t) return;
+  t.textContent = '◈ ' + text;
+  t.style.display = 'block';
+  clearTimeout(ideaToastTimer);
+  ideaToastTimer = setTimeout(() => { t.style.display = 'none'; }, 2400);
+}
+function collectIdea(id) {
+  if (!Array.isArray(state.ideas)) state.ideas = [];
+  if (state.ideas.includes(id)) return;
+  state.ideas.push(id);
+  save();
+  sfxPickup();
+  showIdeaToast(id === 'home-seven' ? 'IDEA GAINED — HOME // 07' : 'IDEA GAINED — ' + id.toUpperCase());
+}
+function updateScan() {
+  const layer = $('scan-layer'), hint = $('scan-hint');
+  if (!layer) return;
+  const active = scanningNow();
+  if (hint) hint.style.display = active ? 'block' : 'none';
+  const inRange = active ? npcsInRange() : [];
+  for (const n of npcs) {
+    const el = n.bubbleEl;
+    if (!el) continue;
+    if (!inRange.includes(n)) { el.style.display = 'none'; continue; }
+    if (n.def.idea) collectIdea(n.def.idea);
+    const v = new THREE.Vector3(n.def.x, n.def.labelY + 0.35, n.def.z).project(camera);
+    el.style.left = ((v.x * 0.5 + 0.5) * window.innerWidth) + 'px';
+    el.style.top = ((-v.y * 0.5 + 0.5) * window.innerHeight) + 'px';
+    el.style.display = 'block';
+  }
+}
+function imprintCourier() {
+  if (state.imprintDone) {
+    showDialogue('COURIER', ['Delivered and logged. The seventh house remembers now.', 'Whatever the Signal took, the west lane kept one address.']);
+    return;
+  }
+  if (!state.ideas.includes('home-seven')) {
+    showDialogue('COURIER', ['…address… corrupted. I carry, but I cannot find the door.', 'The west lane’s seventh house. Someone in town still knows it. Scan the neighbors — hold S and listen.']);
+    return;
+  }
+  state.imprintDone = true;
+  state.chips += 2;
+  const dropPool = ['prism', 'coil'].filter(p => !state.parts[p]);
+  let rewardLine;
+  if (dropPool.length) {
+    const d = dropPool[0];
+    state.parts[d] = true;
+    rewardLine = d === 'prism' ? 'It also hands you a PRISM PLATING.' : 'It also hands you a PHASE COIL.';
+  } else {
+    state.scrap += 2;
+    rewardLine = 'It adds two salvage bits to the crate.';
+  }
+  save();
+  refreshHud();
+  sfxConfirm();
+  const cn = npcs.find(n => n.def.id === 'courier');
+  if (cn?.bubbleEl) cn.bubbleEl.innerHTML = bubbleHTML(cn.def);
+  showDialogue('COURIER', ['Route restored. HOME // 07, west lane, blue door. The package is home.', `For your trouble: two data chips from the delivery fee. ${rewardLine}`, 'The town forgets its own streets sometimes. It’s good someone remembers.']);
+}
+
 // --- Town ---
 function buildTown() {
   townRoot.clear();
@@ -363,6 +463,8 @@ function buildTown() {
   battleRoot.visible = false;
   townRoot.visible = true;
   actorRoot.visible = true;
+  const scanLayerEl = $('scan-layer');
+  if (scanLayerEl) scanLayerEl.innerHTML = '';
   const grassTex = randomTileTexture();
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(34, 24), new THREE.MeshLambertMaterial({ map: grassTex, color: 0xffffff }));
   ground.rotation.x = -Math.PI / 2;
@@ -399,21 +501,23 @@ function buildTown() {
   }
   const trees = [[-14, -8, 1], [-13, 6, 0], [14, -6, 2], [14, 7, 1], [-6, -10, 0], [6, -10, 1], [-14, 1, 2], [14, 2, 0], [-7, 8, 1], [7, 8, 0]];
   trees.forEach(a => addTree(...a));
-  // Wren and the neighborhood's patient trade steward.
-  const wren = createHumanoid(0x367d9a, 0xff70ae);
-  wren.position.set(-2.2, 0, 6.2);
-  actorRoot.add(wren);
-  const steward = createHumanoid(0xb9758d, 0xc9fa68);
-  steward.position.set(8.6, 0, 2.1);
-  actorRoot.add(steward);
-  const guideMark = labelSprite('WREN', '#ffaad0', '#271424');
-  guideMark.scale.set(2, 0.5, 1);
-  guideMark.position.set(-2.2, 2.15, 6.2);
-  actorRoot.add(guideMark);
-  const tradeMark = labelSprite('MOSS', '#c9fa68', '#17251a');
-  tradeMark.scale.set(2, 0.5, 1);
-  tradeMark.position.set(8.6, 2.15, 2.1);
-  actorRoot.add(tradeMark);
+  // NPCs — every neighbor has thoughts (hold S to scan). One carries an idea; the courier needs it.
+  npcs = [];
+  for (const def of NPC_DEFS) {
+    const model = def.kind === 'robot' ? createRobot(def.frame || 'TIDAL', def.name, .5) : createHumanoid(def.torso, def.accent);
+    model.position.set(def.x, 0, def.z);
+    actorRoot.add(model);
+    const label = labelSprite(def.name, def.label, '#091a29');
+    label.scale.set(2, 0.5, 1);
+    label.position.set(def.x, def.labelY, def.z);
+    actorRoot.add(label);
+    const bubbleEl = document.createElement('div');
+    bubbleEl.className = 'scan-bubble';
+    bubbleEl.style.display = 'none';
+    bubbleEl.innerHTML = bubbleHTML(def);
+    $('scan-layer').appendChild(bubbleEl);
+    npcs.push({ def, model, label, bubbleEl });
+  }
   player.position.set(0, 0, 8.4);
   player.rotation.y = Math.PI;
   actorRoot.add(player);
@@ -438,9 +542,12 @@ const companion = new THREE.Group();
 let buddyModel = createRobot('TIDAL', 'PIP', .48);
 companion.add(buddyModel);
 let obstacles = [];
+let npcs = [];
+let ideaToastTimer = null;
 const state = {
   started: false, zone: 'town', chips: 8, scrap: 1, parts: {}, robot: null, ai: null, roster: [],
-  activeTab: 'build', selectedFrame: 'TIDAL', selectedAI: 'KINDLE', message: '', introSeen: false, wins: 0, day: 1, mission: null
+  activeTab: 'build', selectedFrame: 'TIDAL', selectedAI: 'KINDLE', message: '', introSeen: false, wins: 0, day: 1, mission: null,
+  ideas: [], imprintDone: false
 };
 
 // --- Day / mission system (P1.7) ---
@@ -697,7 +804,7 @@ function save() {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       version: 2,
-      chips: state.chips, scrap: state.scrap, parts: state.parts, robot: state.robot, ai: state.ai, roster: state.roster, wins: state.wins, introSeen: state.introSeen, day: state.day, mission: state.mission
+      chips: state.chips, scrap: state.scrap, parts: state.parts, robot: state.robot, ai: state.ai, roster: state.roster, wins: state.wins, introSeen: state.introSeen, day: state.day, mission: state.mission, ideas: state.ideas, imprintDone: state.imprintDone
     }));
     savePresent = true;
   } catch {}
@@ -729,6 +836,9 @@ function load() {
           if (state.robot) state.mission.objectives.find(o => o.id === 'build-robot').done = true;
           if (state.wins > 0) state.mission.objectives.find(o => o.id === 'win-gate').done = true;
         }
+        // P1.8: default the scan/imprint fields for older saves
+        if (!Array.isArray(state.ideas)) state.ideas = [];
+        if (state.imprintDone == null) state.imprintDone = false;
       }
       savePresent = true;
     }
@@ -766,7 +876,8 @@ function nearBuilding() {
     { id: 'forge', x: -9, z: 1.8, d: 2.6, name: 'ENTER HATCHERY • DESIGN A ROBOT' },
     { id: 'trade', x: 9, z: 2.0, d: 2.6, name: 'VISIT SWAP MEET • TRADE PARTS' },
     { id: 'gate', x: 0, z: -5.4, d: 2.2, name: 'ENTER BATTLE GATE • TEST YOUR AI' },
-    { id: 'wren', x: -2.2, z: 6.2, d: 1.4, name: 'TALK TO WREN' }
+    { id: 'wren', x: -2.2, z: 6.2, d: 1.4, name: 'TALK TO WREN' },
+    { id: 'courier', x: 3.2, z: 1.6, d: 1.5, name: 'TALK TO COURIER' }
   ];
   for (const c of candidates) {
     const d = Math.hypot(player.position.x - c.x, player.position.z - c.z);
@@ -980,6 +1091,8 @@ function interact() {
     ]);
   } else if (c.id === 'forge') {
     openPanel(state.robot ? 'build' : 'build');
+  } else if (c.id === 'courier') {
+    imprintCourier();
   } else if (c.id === 'trade') {
     openPanel('trade');
   } else if (c.id === 'gate') {
@@ -1005,7 +1118,8 @@ function movePlayer(dt) {
   if (state.zone !== 'town' || activeModal() || dialogueOpen || !state.started || isDayCardOpen()) return;
   let dx = 0, dz = 0;
   if (keys.KeyW || keys.ArrowUp) dz -= 1;
-  if (keys.KeyS || keys.ArrowDown) dz += 1;
+  if (keys.ArrowDown) dz += 1;
+  if (keys.KeyS && !scanningNow()) dz += 1;
   if (keys.KeyA || keys.ArrowLeft) dx -= 1;
   if (keys.KeyD || keys.ArrowRight) dx += 1;
   if (dx && dz) { dx *= .707; dz *= .707; }
@@ -1432,7 +1546,7 @@ function newGame() {
     return;
   }
   confirmNew = false;
-  Object.assign(state, { started: false, zone: 'town', chips: 8, scrap: 1, parts: {}, robot: null, ai: null, roster: [], day: 1, mission: null, activeTab: 'build', selectedFrame: 'TIDAL', selectedAI: 'KINDLE', message: '', introSeen: false, wins: 0 });
+  Object.assign(state, { started: false, zone: 'town', chips: 8, scrap: 1, parts: {}, robot: null, ai: null, roster: [], day: 1, mission: null, activeTab: 'build', selectedFrame: 'TIDAL', selectedAI: 'KINDLE', message: '', introSeen: false, wins: 0, ideas: [], imprintDone: false });
   try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(SAVE_KEY_V1); } catch {}   // a confirmed erase clears both keys
   savePresent = false;
   begin();
@@ -1442,11 +1556,18 @@ function frameLoop() {
   const dt = Math.min(clock.getDelta(), .04);
   movePlayer(dt);
   updatePrompt();
+  updateScan();
   if (state.zone === 'town' && state.robot) {
     const t = performance.now() / 500;
     buddyModel.position.y = .04 + Math.sin(t) * .06;
     buddyModel.rotation.y = Math.sin(t * .55) * .12;
     if (buddyModel.coreMat) buddyModel.coreMat.emissiveIntensity = .55 + Math.sin(performance.now() / 320) * .3;
+  }
+  const courierNpc = npcs.find(n => n.def.id === 'courier');
+  if (courierNpc?.model?.coreMat) {
+    const cm = courierNpc.model.coreMat;
+    if (state.imprintDone) cm.emissiveIntensity = .7 + Math.sin(performance.now() / 400) * .25;
+    else cm.emissiveIntensity = Math.sin(performance.now() / 70) > .3 ? .75 : .12;
   }
   if (battle && !battle.done) {
     battle.heroModel && (battle.heroModel.rotation.y = -.12 + Math.sin(performance.now() / 600) * .045);
@@ -1515,6 +1636,7 @@ window.__bitspringDebug = {
   startBattle, executeQueue, toggleChip, moveHero, enemyAct, refreshHud,
   robotStats, resolveDrive, openPanel, renderPanel, buildRobot, setPart, installAI,
   renderMission, completeObjective, showDayCard, showDayEndCard, newMission,
+  updateScan, npcsInRange, scanningNow, collectIdea, imprintCourier,
   get battle() { return battle; },
   get state() { return state; }
 };

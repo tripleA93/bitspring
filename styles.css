@@ -175,3 +175,9 @@
   .day-card-sub{font:11px 'Press Start 2P',monospace;color:var(--cyan);letter-spacing:.18em;margin-bottom:20px;line-height:1.8}
   .day-card-copy{font-size:12px;line-height:1.9;color:#c1d8e5;margin:0 0 26px}
   @media(max-width:700px){.mission-tracker{left:8px;top:76px;min-width:150px;padding:7px 8px}.mt-item{font-size:8px}.day-card-inner{padding:24px 20px}}
+  .scan-layer{position:absolute;z-index:6;inset:0;pointer-events:none;overflow:hidden}
+  .scan-bubble{position:absolute;transform:translate(-50%,-100%);max-width:236px;border:2px solid var(--cyan);background:rgba(4,18,29,.94);box-shadow:3px 3px 0 #06101a;padding:8px 10px;font-size:10px;line-height:1.6;text-align:left}
+  .scan-bubble .sb-name{font:7px 'Press Start 2P',monospace;color:var(--lime);margin-bottom:5px;letter-spacing:.08em}
+  .scan-bubble .sb-line{color:#bcd6e2}
+  .scan-hint{position:absolute;z-index:6;left:50%;top:16px;transform:translateX(-50%);display:none;font:8px 'Press Start 2P',monospace;color:var(--lime);border:1px solid var(--cyan);background:rgba(4,18,29,.92);padding:6px 10px;letter-spacing:.14em;pointer-events:none;box-shadow:3px 3px 0 #06101a}
+  .idea-toast{position:absolute;z-index:7;left:50%;top:46px;transform:translateX(-50%);display:none;font:8px 'Press Start 2P',monospace;color:var(--pink);border:2px solid var(--pink);background:rgba(4,18,29,.94);padding:7px 12px;letter-spacing:.08em;pointer-events:none;box-shadow:3px 3px 0 #06101a}

@@ -18,7 +18,10 @@
   <div class="volume-ctl" id="volume-ctl" style="display:none"><span class="vol-label">VOL</span><input type="range" id="volume-slider" min="0" max="100" value="32" aria-label="Master volume"></div>
   <div class="bot-card" id="bot-card"><div class="eyebrow">YOUR PARTNER UNIT</div><div class="bot-name" id="hud-bot-name">—</div><div class="bot-detail" id="hud-bot-detail">NO ROBOT REGISTERED</div></div>
   <div class="mission-tracker" id="mission-tracker"><div class="mt-head"><span class="mt-day" id="mt-day">DAY 01</span><span class="mt-name" id="mt-name">FIRST CONTACT</span></div><ul class="mt-list" id="mt-list"></ul></div>
-  <div class="controls" id="controls"><span class="key">WASD</span> MOVE &nbsp; <span class="key">E</span> TALK / USE &nbsp; <span class="key">M</span> MUSIC &nbsp; <span class="key">ESC</span> CLOSE</div>
+  <div class="scan-layer" id="scan-layer"></div>
+  <div class="scan-hint" id="scan-hint">◈ SCANNING</div>
+  <div class="idea-toast" id="idea-toast"></div>
+  <div class="controls" id="controls"><span class="key">WASD</span> MOVE &nbsp; <span class="key">E</span> TALK / USE &nbsp; <span class="key">S</span> SCAN &nbsp; <span class="key">M</span> MUSIC &nbsp; <span class="key">ESC</span> CLOSE</div>
   <div class="prompt" id="prompt"><b>[ E ]</b> <span id="prompt-text">INTERACT</span></div>
   <div class="dialogue" id="dialogue"><div class="speaker" id="speaker">WREN</div><div class="line" id="dialogue-line"></div><div class="continue">E / ENTER &nbsp; ▸</div></div>
   <div class="modal-shade" id="modal-shade"><section class="panel" id="panel"></section></div>
@@ -28,6 +31,6 @@
   <section class="start-screen" id="start-screen"><div class="title-layout"><div><div class="world-tag">A LITTLE MACHINEBOUND RPG<br>EPISODE 01 — HOME SIGNAL</div><h1 class="title-mark">BIT<span>SPRING</span></h1><p class="title-sub">Build a small robot with a big mind. Make a life in the neon backwater of the Net, trade parts with your neighbors, and teach your partner how to fight.</p><div class="title-actions"><button class="start-button continue" id="continue-button" style="display:none">CONTINUE<br><small style="font:9px 'Space Mono';color:#d8f8bc" id="continue-sub">LOAD YOUR SAVE</small></button><button class="start-button" id="start-button">NEW GAME<br><small style="font:9px 'Space Mono';color:#d8f8bc">PRESS ENTER</small></button></div><div class="start-help">A bright little town at the end of a very large network.<br>Move with WASD / arrows. Talk and build with E.</div></div><div class="hero-card"><div class="hero-orb"></div><div class="hero-robot"><i class="antenna"></i><i class="head"></i><i class="eye"></i><i class="body"></i><i class="core"></i><i class="arm l"></i><i class="arm r"></i><i class="leg l"></i><i class="leg r"></i></div><div class="hero-label">// A PARTNER IS A PROMISE.</div></div></div></section>
   <div class="day-card" id="day-card"><div class="day-card-inner"><div class="day-card-kicker" id="day-card-kicker">EPISODE 01</div><h2 class="day-card-title" id="day-card-title">DAY 1</h2><div class="day-card-sub" id="day-card-sub">FIRST CONTACT</div><p class="day-card-copy" id="day-card-copy"></p><button class="action" id="day-card-button">BEGIN ▸</button></div></div>
 </main>
-<script type="module" src="src/main.js?v=13"></script>
+<script type="module" src="src/main.js?v=14"></script>
 </body>
 </html>

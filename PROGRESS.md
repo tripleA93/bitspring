@@ -84,3 +84,11 @@ Append new entries at the END, newest last. Format: `## <YYYY-MM-DD HH:MM> — <
 - Objective hooks: `interact`→Wren (meet-wren), `buildRobot` (build-robot), `finishBattle(won)` (win-gate → teaserPending → `returnTown` shows the end card). Existing saves reconcile on load (robot→build done, wins>0→gate done).
 - Verified live on localhost:8123 — fresh flow (canvas 640×360 → day card → intro → tracker), full objective chain, save/reload persistence, day-end card + Wren teaser, tracker hides in battle; syntax PASS (71,630 chars).
 - Commit `cc0709f`, pushed. NEXT: P1.8 — Scan & thoughts (hold [S] near NPCs).
+
+## 2026-10-10 09:10 — P1.8 Scan & thoughts + imprint puzzle
+
+- Town now has 10 NPCs (Wren, Moss + 8 new: Nella, Courier, Pipo, Six, Gull, Tally, Orr, Mav), each with 2–4 TWEWY-flavor thought lines. Hold [S] near an NPC to scan: thought bubbles float over every neighbor in range (DOM overlay projected from the ortho camera each frame), a "◈ SCANNING" hint shows, and S stops walking you backward while a target is in range.
+- Imprint puzzle: the frozen COURIER robot near the plaza has a corrupted address. Scanning NELLA yields the idea "HOME // 07"; interact (E) with the Courier to imprint it and deliver the package — reward +2 data chips and a part (Prism Plating/Phase Coil) if unowned, else +2 scrap. Courier's core flickers while stuck, glows steady once delivered; its thoughts change and persist.
+- New save fields `ideas` + `imprintDone` (migrated/defaulted on load); newGame resets them; confirmed round-trip on reload. Controls hint updated to include "S SCAN".
+- Verified live on localhost:8123 — canvas 640×360, zero console errors; scan shows 1 bubble at start (Wren in range), releases cleanly; stuck→collect→imprint path works end-to-end (chips 8→10, prism drop, bubble text updates); reload persists imprintDone/ideas/parts. Syntax PASS (79,615 chars).
+- Commit pending (this shift). NEXT: P1.9 — World expansion (Dock Row).
