@@ -55,3 +55,13 @@ Append new entries at the END, newest last. Format: `## <YYYY-MM-DD HH:MM> — <
 - Music toggle + volume slider now also visible on the title screen (shown at boot), so music is controllable before starting. Enter = Continue; `#start-button` = New Game.
 - Verified live on `localhost:8123`: fresh boot → no CONTINUE, NEW GAME starts + intro dialogue + v2 written; reload → CONTINUE appears and resumes; seeded v1 migrates to v2 (`SPROCKET • SPARK`); erase flow wipes clean (chips→8, v1 removed). `node tools/syntax-check.mjs` PASS (52,384 chars).
 - Commit pending (this shift). NEXT: P1.5 — Battle v2 (Battle-Network-style grid battles).
+
+## 2026-10-10 06:20 — P1.5 Battle v2 (Battle-Network-style grid)
+
+- Rebuilt battle as a chip-deck grid duel: 16-card deck (PING/BOOM/AI DRIVE/GUARD/PATCH/DASH), hand of 5 redrawn each turn, queue up to 3 chips then EXECUTE. AI DRIVE damage stays Ghostlight-dependent (SPARK/ORACLE/BASTION), +3 dmg when lined up in the enemy's column.
+- Added two 3×3 grid zones (hero/rogue) with click-to-move panels; enemy intent is telegraphed each turn (HEAVY STRIKE / SPLIT SHOT / RECHARGE / OVERRUN, targeting a column) — move out of the aimed column or DASH to dodge.
+- Win now drops a part (PRISM PLATING / PHASE COIL, or +2 scrap if the kit is full) alongside 4 chips + 2 scrap; lose keeps the friendly Wren retry.
+- Fixed a latent win-crash: `startBattle` replaces `#hud-right` (removing `#hud-chips`), so `refreshHud()` threw during battle; now guarded.
+- Added inert `window.__bitspringDebug` handle for headless QA.
+- Verified live on `localhost:8123`: full win path (finish flex, SIGNAL SECURED, PHASE COIL drop, returnTown restores hud-chips) and lose path (PARTNER DOWN) both clean; queue caps at 3; syntax PASS (58,308 chars).
+- Commit `3c5adbb`, pushed. NEXT: P1.6 — Workbench v2 (Robopon part depth).
