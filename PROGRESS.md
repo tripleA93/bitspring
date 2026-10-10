@@ -36,3 +36,14 @@ Append new entries at the END, newest last. Format: `## <YYYY-MM-DD HH:MM> — <
 - Verified: `node tools/syntax-check.mjs` PASS; live browser on `localhost:8123` — canvas 640×360, `#start-button` → start hidden + HUD flex + BITSPRING zone, zero console errors.
 - Commit `e93febe`, pushed to `main`. Optional outline pass deliberately skipped (flagged optional); key props (buildings/trees/fountain) already present.
 - NEXT: P1.3 — music & audio upgrade (user priority: "I want music").
+
+## 2026-10-10 04:38 — P1.3 Music & audio upgrade
+
+- Refactored the audio section: split `initAudio()` (idempotent, always returns the context) from `startMusic()`, so SFX and music share one master gain bus and the init-return-undefined pitfall is gone.
+- Richer music: town theme now has a shimmering arpeggio layer + an evolving counter-line on the back half of each 32-step phrase; battle theme gains three intensity layers (doubled lead → driving hats/bass → full 8th-note pulse) driven by a `battleIntensity` value that ramps up as rounds progress.
+- Added a victory jingle (rising square arp + held chord) and defeat jingle (falling phrase), fired from `finishBattle`.
+- Master volume: new `bitspring-settings-v1` localStorage (musicOn + volume persisted), a `VOL` slider under the music toggle, `M` key toggles music, controls hint updated. Volume applies to music + SFX together.
+- Full SFX pass wired in: dialogue blips, panel open/tab/frame/AI select, confirm on buy/sell/install/set-partner, robot-build chirp, battle hit/heavy-hit/guard/heal/enemy-hit.
+- Verified: `node tools/syntax-check.mjs` PASS (50,293 chars); live browser on `localhost:8123` — canvas 640×360, start → HUD flex, music-toggle ON→OFF toggles, volume slider 32→55 updates, zero console errors.
+- Commit `de9f92d`, pushed to `main`. Zone-variation theme swap (distinct per-zone melody) deferred until more zones exist (Dock Row is P1.9); current town/battle split already varies by theme.
+- NEXT: P1.4 — Save v2 + title flow.
